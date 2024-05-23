@@ -9,7 +9,7 @@ BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 @app.route('/')
 def index():
-    return render_template('upload.html')
+    return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
