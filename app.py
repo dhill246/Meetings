@@ -6,6 +6,17 @@ import boto3
 app = Flask(__name__)
 
 BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
+SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+PROFILE = "danielthill"
+
+# Setting up the Boto3 session
+session = boto3.Session(
+    aws_access_key_id=ACCESS_KEY,
+    aws_secret_access_key=SECRET_KEY,
+    profile_name=PROFILE,
+    region_name='us-east-1'
+)
 
 @app.route('/')
 def index():
@@ -24,10 +35,10 @@ def upload_file():
         filepath = os.path.join("uploads", filename)
         file.save(filepath)
         
-        s3 = boto3.client("s3", region_name="us-east-1")
+        s3 = session.client("s3")
 
         with open(filepath, "rb") as f:
-            s3.upload_fileobj(f, BUCKET_NAME, "test_file.jpg")
+            s3.upload_fileobj(f, BUCKET_NAME, "test_file")
         
         return 'File uploaded successfully'
 
