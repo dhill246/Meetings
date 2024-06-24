@@ -29,9 +29,6 @@ def convert_to_wav(input_file, output_file):
     except Exception as e:
         print("An error occurred:", str(e))
 
-
-
-
 # Initialize Flask app
 app = Flask(__name__)
 
