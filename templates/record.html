@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Record Audio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+  </head>
+  <body>
+    <h1>Welcome, {{ username }}. Today's date is {{ date }}.</h1>
+    <button id="startButton" onclick="startRecording()">Start Recording</button>
+    <button id="stopButton" onclick="stopRecording()" style="display: none">
+      End Recording
+    </button>
+    <button id="pauseButton" onclick="pauseRecording()" style="display: none">
+      Pause Recording
+    </button>
+    <button id="resumeButton" onclick="resumeRecording()" style="display: none">
+      Resume Recording
+    </button>
+    <div id="statusMessage" style="display: none">Recording Complete</div>
+    <button onclick="goBack()">Back</button>
+    <canvas id="audioVisualization" width="640" height="100"></canvas>
+    <script>
+      let mediaRecorder;
+      let stream; // Global variable to hold the media stream
+      const socket = io();
+
+      function startRecording() {
+        navigator.mediaDevices
+          .getUserMedia({ audio: true })
+          .then((mediaStream) => {
+            stream = mediaStream; // Store the stream globally for later access
+
+            mediaRecorder = new MediaRecorder(stream);
+            document.getElementById("startButton").style.display = "none";
+            document.getElementById("stopButton").style.display = "block";
+            document.getElementById("pauseButton").style.display = "block";
+            console.log("Recording started");
+            mediaRecorder.start();
+
+            mediaRecorder.ondataavailable = function (event) {
+              if (event.data.size > 0) {
+                socket.emit("audio_chunk", {
+                  audioData: event.data,
+                  username: "{{ username }}",
+                  date: "{{ date }}",
+                });
+              }
+            };
+          })
+          .catch((error) => {
+            console.error("Error accessing media devices:", error);
+          });
+      }
+
+      function stopRecording() {
+        console.log("Stop button clicked");
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+          console.log("Recording stopped");
+          document.getElementById("stopButton").style.display = "none";
+          document.getElementById("pauseButton").style.display = "none";
+          document.getElementById("resumeButton").style.display = "none";
+          document.getElementById("statusMessage").style.display = "block";
+          socket.emit("audio_end", {
+            username: "{{ username }}",
+            date: "{{ date }}",
+          });
+          stream.getTracks().forEach((track) => track.stop()); // Stop each track of the stream to release the microphone
+        } else {
+          console.log("Recorder is inactive or not defined");
+        }
+      }
+
+      function pauseRecording() {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          mediaRecorder.pause();
+          console.log("Recording paused");
+          document.getElementById("pauseButton").style.display = "none";
+          document.getElementById("resumeButton").style.display = "block";
+        }
+      }
+
+      function resumeRecording() {
+        if (mediaRecorder && mediaRecorder.state === "paused") {
+          mediaRecorder.resume();
+          console.log("Recording resumed");
+          document.getElementById("resumeButton").style.display = "none";
+          document.getElementById("pauseButton").style.display = "block";
+        }
+      }
+
+      function goBack() {
+        window.history.back();
+      }
+    </script>
+  </body>
+</html>

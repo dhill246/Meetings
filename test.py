@@ -22,6 +22,7 @@ session = boto3.Session(
     profile_name=PROFILE,
     region_name='us-east-1'
 )
+print(session)
 
 s3 = session.client("s3")
 

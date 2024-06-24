@@ -1,10 +1,20 @@
 <!DOCTYPE html>
 <html>
+  <head>
+    <title>User Details</title>
+  </head>
   <body>
-    <h1>Upload new File</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-      <input type="file" name="file" />
-      <input type="submit" value="Upload" />
+    <h1>Please input your name and the date to get started.</h1>
+    <form method="POST">
+      <input
+        type="text"
+        id="username"
+        name="username"
+        placeholder="Your Name"
+        required
+      />
+      <input type="date" id="date" name="date" required />
+      <button type="submit">Submit</button>
     </form>
   </body>
 </html>
