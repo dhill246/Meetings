@@ -7,7 +7,7 @@ from io import BytesIO
 import logging
 
 # Set up basic logging
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 # Specify path to ffmpeg
 # TODO -- Figure out how to package ffmpeg for use on Heroku server
