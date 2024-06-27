@@ -126,29 +126,59 @@ def handle_audio_chunk(data):
 #         for file_name in files_in_bucket:
 #             f.write(f"{file_name}\n")
 
+audio_streams = {}
+
 @socketio.on('audio_chunk')
 def handle_audio_chunk(data):
     name = data['username']
     date = data['date']
     audio = data["audioData"]
 
-    file_path = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")  # Change file extension based on your data format
+    key = f"{name}_{date}"
 
-    # Write the chunk to a file
-    with open(file_path, 'ab') as f:  # 'ab' opens the file in append mode as binary
-        f.write(audio)
+    # Check if the stream already exists, if not, create a new BytesIO stream
+    if key not in audio_streams:
+        audio_streams[key] = BytesIO()
+    
+    # Append audio chunk to the stream
+    audio_streams[key].write(audio)
+
+    # file_path = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")  # Change file extension based on your data format
+
+    # # Write the chunk to a file
+    # with open(file_path, 'ab') as f:  # 'ab' opens the file in append mode as binary
+    #     f.write(audio)
 
 @socketio.on('audio_end')
 def handle_audio_end(data):
     name = data['username']
     date = data['date']
-    input_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")
-    output_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.wav")
-    convert_to_wav(input_file, output_file)
 
-    key = f"audio_files/{name}_{date}.wav"
+    key = f"{name}_{date}"
 
-    s3_client.upload_file(output_file, bucket_name, key)
+    # Get the BytesIO stream
+    audio_stream = audio_streams.pop(key, None)
+
+    if audio_stream:
+        # Reset the pointer of the BytesIO object to the beginning
+        audio_stream.seek(0)
+        
+        # Define the S3 key
+        s3_key = f"audio_files/{key}.webm"  # or ".wav" if you convert before uploading
+
+        # Upload the file to S3
+        s3_client.upload_fileobj(audio_stream, bucket_name, s3_key)
+        
+        # Close the stream
+        audio_stream.close()
+
+    # input_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")
+    # output_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.wav")
+    # convert_to_wav(input_file, output_file)
+
+    # key = f"audio_files/{name}_{date}.wav"
+
+    # s3_client.upload_file(output_file, bucket_name, key)
 
 if __name__ == '__main__':
     socketio.run(app, allow_unsafe_werkzeug=True)
