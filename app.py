@@ -2,6 +2,12 @@ from flask import Flask, render_template, request, redirect, url_for
 from flask_socketio import SocketIO, emit
 import os
 import subprocess
+import boto3
+from io import BytesIO
+import logging
+
+# Set up basic logging
+logging.basicConfig(level=logging.DEBUG)
 
 # Specify path to ffmpeg
 # TODO -- Figure out how to package ffmpeg for use on Heroku server
@@ -29,6 +35,15 @@ def convert_to_wav(input_file, output_file):
     except Exception as e:
         print("An error occurred:", str(e))
 
+# Connect to S3
+# Initialize S3 client globally if possible (outside the request handling logic)
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+)
+bucket_name = os.getenv('S3_BUCKET_NAME')
+
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -55,15 +70,72 @@ def record():
 
 @socketio.on('audio_chunk')
 def handle_audio_chunk(data):
+    app.logger.info('BROCCOLI THOUGHTS')
     name = data['username']
     date = data['date']
     audio = data["audioData"]
 
-    file_path = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")  # Change file extension based on your data format
+    # Create a unique file path or identifier
+    file_identifier = f"{name}_{date}.webm"  # Change file extension based on your data format
 
-    # Write the chunk to a file
-    with open(file_path, 'ab') as f:  # 'ab' opens the file in append mode as binary
-        f.write(audio)
+    # Use BytesIO to handle file in memory
+    audio_buffer = BytesIO()
+    audio_buffer.write(audio)
+
+    # Set the cursor to the beginning of the stream
+    audio_buffer.seek(0)
+
+    # Upload to S3
+    try:
+        s3_client.upload_fileobj(audio_buffer, bucket_name, file_identifier)
+        print("Upload successful")
+    except Exception as e:
+        print(f"Failed to upload: {e}")
+    finally:
+        audio_buffer.close()
+
+# @socketio.on('audio_end')
+# def handle_audio_end(data):
+#     name = data['username']
+#     date = data['date']
+#     file_path = f"{name}_{date}.webm"
+
+#     # Instead of storing locally, fetch the file from S3
+#     obj = s3_client.get_object(Bucket=bucket_name, Key=file_path)
+#     audio_body = obj['Body'].read()
+    
+#     # You can convert the file using a temporary local file or in-memory
+#     with open(f"/tmp/{name}_{date}.webm", 'wb') as f:
+#         f.write(audio_body)
+
+#     input_file = f"/tmp/{name}_{date}.webm"
+#     output_file = f"/tmp/{name}_{date}.wav"
+    
+#     # Convert to WAV as before
+#     convert_to_wav(input_file, output_file)
+    
+#     # Optionally, upload the WAV file back to S3
+#     with open(output_file, 'rb') as f:
+#         s3_client.upload_fileobj(f, bucket_name, f"{name}_{date}.wav")
+
+#     files_in_bucket = list_files(bucket_name)
+#     # Writing the output to a text file
+#     with open("/mnt/data/S3_bucket_contents.txt", "w") as f:
+#         f.write("Files in Bucket:\n")
+#         for file_name in files_in_bucket:
+#             f.write(f"{file_name}\n")
+
+# @socketio.on('audio_chunk')
+# def handle_audio_chunk(data):
+#     name = data['username']
+#     date = data['date']
+#     audio = data["audioData"]
+
+#     file_path = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")  # Change file extension based on your data format
+
+#     # Write the chunk to a file
+#     with open(file_path, 'ab') as f:  # 'ab' opens the file in append mode as binary
+#         f.write(audio)
 
 @socketio.on('audio_end')
 def handle_audio_end(data):
@@ -72,7 +144,6 @@ def handle_audio_end(data):
     input_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")
     output_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.wav")
     convert_to_wav(input_file, output_file)
-
 
 if __name__ == '__main__':
     socketio.run(app, allow_unsafe_werkzeug=True)
