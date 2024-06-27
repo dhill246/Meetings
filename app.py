@@ -39,10 +39,11 @@ def convert_to_wav(input_file, output_file):
 # Initialize S3 client globally if possible (outside the request handling logic)
 s3_client = boto3.client(
     's3',
-    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    aws_access_key_id=os.getenv('BUCKETEER_AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
 )
-bucket_name = os.getenv('S3_BUCKET_NAME')
+
+bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -125,17 +126,17 @@ def handle_audio_chunk(data):
 #         for file_name in files_in_bucket:
 #             f.write(f"{file_name}\n")
 
-# @socketio.on('audio_chunk')
-# def handle_audio_chunk(data):
-#     name = data['username']
-#     date = data['date']
-#     audio = data["audioData"]
+@socketio.on('audio_chunk')
+def handle_audio_chunk(data):
+    name = data['username']
+    date = data['date']
+    audio = data["audioData"]
 
-#     file_path = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")  # Change file extension based on your data format
+    file_path = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")  # Change file extension based on your data format
 
-#     # Write the chunk to a file
-#     with open(file_path, 'ab') as f:  # 'ab' opens the file in append mode as binary
-#         f.write(audio)
+    # Write the chunk to a file
+    with open(file_path, 'ab') as f:  # 'ab' opens the file in append mode as binary
+        f.write(audio)
 
 @socketio.on('audio_end')
 def handle_audio_end(data):
@@ -144,6 +145,10 @@ def handle_audio_end(data):
     input_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.webm")
     output_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.wav")
     convert_to_wav(input_file, output_file)
+
+    key = f"audio_files/{name}_{date}.wav"
+
+    s3_client.upload_file(output_file, bucket_name, key)
 
 if __name__ == '__main__':
     socketio.run(app, allow_unsafe_werkzeug=True)

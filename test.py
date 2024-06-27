@@ -3,32 +3,64 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
-SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
-PROFILE = os.getenv("PROFILE")
-REGION = os.getenv("REGION")
+AUDIO_FOLDER = 'audio_files'
+name = "Daniel"
+date = "2024-06-26"
 
-print(f"Bucket: {BUCKET_NAME}")
-print(f"Access Key: {ACCESS_KEY}")
-print(f"Secret Key: {SECRET_KEY}")
-print(f"Profile: {PROFILE}")
-print(f"Region: {REGION}")
-
-# Setting up the Boto3 session
-session = boto3.Session(
-    aws_access_key_id=ACCESS_KEY,
-    aws_secret_access_key=SECRET_KEY,
-    profile_name=PROFILE,
-    region_name='us-east-1'
+# Connect to S3
+# Initialize S3 client globally if possible (outside the request handling logic)
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('BUCKETEER_AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
 )
-print(session)
 
-s3 = session.client("s3")
+print(s3_client)
 
-try:
-    with open("uploads/Concert.jpg", "rb") as f:
-        s3.upload_fileobj(f, BUCKET_NAME, "test_file")
-    print("Upload successful")
-except Exception as e:
-    print(f"An error occurred: {e}")
+bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
+
+def upload_test():
+    output_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.wav")
+
+
+    key = f"audio_files/{name}_{date}.wav"
+
+    s3_client.upload_file(output_file, bucket_name, key)
+
+def list_test():
+    # List objects within the bucket
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    list_of_files = []
+
+    # Check if 'Contents' key is in the response (it won't be if the bucket is empty)
+    if 'Contents' in response:
+        for item in response['Contents']:
+            print(item['Key'], item['LastModified'], item['Size'])
+            list_of_files.append(item["Key"])
+
+        return list_of_files
+    else:
+        print("No items in the bucket.")
+
+def download_test():
+    object_key = f"audio_files/{name}_{date}.wav"  # Adjust based on the actual file you want to download
+
+    # Local path where you want to save the downloaded file
+    local_file_path = os.path.join('C:\\Users\\Daniel Hill\\Documents\\HerokuNew', 'TEST_2024-06-26.wav')
+
+    # Download the file
+    s3_client.download_file(bucket_name, object_key, local_file_path)
+    print(f"Downloaded file to {local_file_path}")
+
+def delete_all_files():
+    my_list = list_test()
+    if my_list != None:
+        object_ids = [{'Key': item} for item in my_list]
+        delete_params = {'Objects': object_ids}
+
+        s3_client.delete_objects(Bucket=bucket_name, Delete=delete_params)
+
+    else:
+        print("No objects in bucket to delete.")
+
+print(list_test())
