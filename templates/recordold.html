@@ -22,58 +22,53 @@
     <script>
       let mediaRecorder;
       let stream; // Global variable to hold the media stream
-      let segmentCounter = 0;
-      let segmentInterval;
       const socket = io();
 
-      const username = "{{ username }}";
-      const date = "{{ date }}";
-
       function startRecording() {
+        // Access the microphone
         navigator.mediaDevices
           .getUserMedia({ audio: true })
+
+          // Handle the media stream
           .then((mediaStream) => {
-            stream = mediaStream;
+            stream = mediaStream; // Store the stream globally for later access
+            // Create an object to record the audio from mediaStream
             mediaRecorder = new MediaRecorder(stream);
+            // Once recording starts, update UI by taking away start button
+            // and adding stop and pause buttons.
             document.getElementById("startButton").style.display = "none";
             document.getElementById("stopButton").style.display = "block";
             document.getElementById("pauseButton").style.display = "block";
+            // Let the client side know recording has begun
             console.log("Recording started");
+            // Start recording
             mediaRecorder.start();
 
-            segmentCounter = 1;
-            segmentInterval = setInterval(() => {
-              if (mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-              }
-            }, 60000); // Stop the recording every minute
-
+            // Handle recorded data by processing chunks of audio data
+            // as they become available. If the event exists, send it
+            // to the server.
             mediaRecorder.ondataavailable = function (event) {
               if (event.data.size > 0) {
-                const fileKey = `${username}_${date}/${segmentCounter}.webm`;
-                segmentCounter++;
                 socket.emit("audio_chunk", {
                   audioData: event.data,
-                  key: fileKey,
-                  username: username,
-                  date: date,
+                  username: "{{ username }}",
+                  date: "{{ date }}",
                 });
-
-                // Check if mediaRecorder is defined before starting it again
-                if (mediaRecorder) {
-                  mediaRecorder.start(); // Restart recording for the next segment
-                }
               }
             };
           })
+          // Let the user know if an audio device is not available
           .catch((error) => {
+            // Error handling
             if (
               error.name === "NotFoundError" ||
               error.name === "DevicesNotFoundError"
             ) {
+              // No media devices found
               console.error("No recording device detected");
               alert("No recording device detected");
             } else {
+              // Other kinds of errors
               console.error("Error accessing the microphone: ", error);
             }
           });
@@ -81,40 +76,31 @@
 
       function stopRecording() {
         console.log("Stop button clicked");
+        // Check if the recorder exists and make sure is is either paused or recording
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
-          clearInterval(segmentInterval);
-
-          mediaRecorder.onstop = () => {
-            if (mediaRecorder && mediaRecorder.state !== "inactive") {
-              const fileKey = `${username}_${date}/${segmentCounter}.webm`;
-              socket.emit("audio_chunk", {
-                audioData: mediaRecorder,
-                key: fileKey,
-                username: username,
-                date: date,
-              });
-            }
-
-            // Send the audio_end event after a short delay to ensure all chunks are processed
-            setTimeout(() => {
-              socket.emit("audio_end", {
-                username: username,
-                date: date,
-              });
-            }, 1000); // Adjust the delay as necessary
-
-            // Release the microphone
-            stream.getTracks().forEach((track) => track.stop());
-            stream = null;
-            mediaRecorder = null;
-          };
-
+          // Stop the recording and let the client know
           mediaRecorder.stop();
           console.log("Recording stopped");
+          // Hide the stop button, pause button, and resume button
+          // Display the button to go back
           document.getElementById("stopButton").style.display = "none";
           document.getElementById("pauseButton").style.display = "none";
           document.getElementById("resumeButton").style.display = "none";
           document.getElementById("statusMessage").style.display = "block";
+
+          // Emit the end of the audio event to let the server know the recording has ended
+          setTimeout(() => {
+            socket.emit("audio_end", {
+              username: "{{ username }}",
+              date: "{{ date }}",
+            });
+          }, 1000); // Adjust the delay as necessary
+          // Release the microphone
+          stream.getTracks().forEach((track) => track.stop()); // Stop each track of the stream to release the microphone
+          // Clear the global variables
+          stream = null;
+          mediaRecorder = null;
+          // Handle inactive recorder by letting the client know the recorder isn't active
         } else {
           console.log("Recorder is inactive or not defined");
         }

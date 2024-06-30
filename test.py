@@ -20,10 +20,10 @@ print(s3_client)
 bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
 
 def upload_test():
-    output_file = os.path.join(AUDIO_FOLDER, f"{name}_{date}.wav")
+    output_file = os.path.join(AUDIO_FOLDER, "my_test_file.txt")
 
 
-    key = f"audio_files/{name}_{date}.wav"
+    key = f"audio_files/my_test_file.txt"
 
     s3_client.upload_file(output_file, bucket_name, key)
 
@@ -42,11 +42,10 @@ def list_test():
     else:
         print("No items in the bucket.")
 
-def download_test():
-    object_key = f"audio_files/{name}_{date}.wav"  # Adjust based on the actual file you want to download
+def download_test(object_key, download_name):
 
     # Local path where you want to save the downloaded file
-    local_file_path = os.path.join('C:\\Users\\Daniel Hill\\Documents\\HerokuNew', 'TEST_2024-06-26.wav')
+    local_file_path = os.path.join('C:\\Users\\Daniel Hill\\Documents\\HerokuNew', download_name)
 
     # Download the file
     s3_client.download_file(bucket_name, object_key, local_file_path)
@@ -62,5 +61,9 @@ def delete_all_files():
 
     else:
         print("No objects in bucket to delete.")
+
+# print(download_test("NOWAYTHISWORKS_2024-06-30/1.webm", "1.webm"))
+# print(download_test("NOWAYTHISWORKS_2024-06-30/2.webm", "2.webm"))
+# print(download_test("NOWAYTHISWORKS_2024-06-30/3.webm", "3.webm"))
 
 print(list_test())
