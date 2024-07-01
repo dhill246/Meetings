@@ -3,9 +3,97 @@
   <head>
     <title>Record Audio</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f4f4f4;
+        padding: 40px;
+      }
+      form,
+      #statusMessage,
+      canvas {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        width: 300px;
+        margin: 20px auto;
+        display: block;
+      }
+      h1,
+      h3 {
+        text-align: center;
+        color: #333;
+      }
+      select,
+      input[type="text"],
+      button {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        margin-top: 20px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      #statusMessage {
+        text-align: center;
+        color: #333;
+        display: none; /* hidden by default */
+      }
+      canvas {
+        display: block; /* ensures the canvas is not inline */
+        background: #fff; /* white background for visibility */
+        border: 1px solid #ccc; /* consistent with other elements */
+        margin-top: 20px;
+      }
+      #recordingStatus {
+        color: gray; /* Default color */
+        text-align: center;
+        padding: 10px;
+        font-size: 20px;
+        border-radius: 5px;
+        transition: color 0.5s ease; /* Smooth transition for color changes */
+      }
+
+      .recording-in-progress {
+        color: red;
+        animation: pulse 1s infinite; /* Animation for pulsing effect */
+      }
+
+      .recording-stopped {
+        color: gray;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
   <body>
-    <h1>Welcome, {{ username }}. Today's date is {{ date }}.</h1>
+    <h1>Welcome.</h1>
+    <h3>
+      One on One Meeting between {{ username }} and {{ firstname }} {{ lastname
+      }} on {{ date }}.
+    </h3>
     <button id="startButton" onclick="startRecording()">Start Recording</button>
     <button id="stopButton" onclick="stopRecording()" style="display: none">
       End Recording
@@ -17,8 +105,8 @@
       Resume Recording
     </button>
     <div id="statusMessage" style="display: none">Recording Complete</div>
+    <div id="recordingStatus" class="recording-stopped">Recording stopped</div>
     <button onclick="goBack()">Back</button>
-    <canvas id="audioVisualization" width="640" height="100"></canvas>
     <script>
       let mediaRecorder;
       let stream; // Global variable to hold the media stream
@@ -27,6 +115,8 @@
       const socket = io();
 
       const username = "{{ username }}";
+      const firstname = "{{ firstname }}";
+      const lastname = "{{ lastname }}";
       const date = "{{ date }}";
 
       function startRecording() {
@@ -35,6 +125,8 @@
           .then((mediaStream) => {
             stream = mediaStream;
             mediaRecorder = new MediaRecorder(stream);
+            recordingStatus.textContent = "Recording in progress";
+            recordingStatus.className = "recording-in-progress"; // Apply pulsing red style
             document.getElementById("startButton").style.display = "none";
             document.getElementById("stopButton").style.display = "block";
             document.getElementById("pauseButton").style.display = "block";
@@ -50,7 +142,7 @@
 
             mediaRecorder.ondataavailable = function (event) {
               if (event.data.size > 0) {
-                const fileKey = `${username}_${date}/${segmentCounter}.webm`;
+                const fileKey = `${username}_${firstname}${lastname}_${date}/${segmentCounter}.webm`;
                 segmentCounter++;
                 socket.emit("audio_chunk", {
                   audioData: event.data,
@@ -110,6 +202,8 @@
           };
 
           mediaRecorder.stop();
+          recordingStatus.textContent = "Recording stopped";
+          recordingStatus.className = "recording-stopped"; // Change to gray
           console.log("Recording stopped");
           document.getElementById("stopButton").style.display = "none";
           document.getElementById("pauseButton").style.display = "none";
@@ -125,8 +219,10 @@
         if (mediaRecorder && mediaRecorder.state === "recording") {
           // Update media recorder to paused
           mediaRecorder.pause();
+          recordingStatus.textContent = "Recording stopped";
+          recordingStatus.className = "recording-stopped"; // Change to gray
           // Let the client know the recording is paused
-          console.log("Recording paused");
+          console.log("Recording is paused");
           // Hide the pause button and show the resume button
           document.getElementById("pauseButton").style.display = "none";
           document.getElementById("resumeButton").style.display = "block";
@@ -138,6 +234,8 @@
         if (mediaRecorder && mediaRecorder.state === "paused") {
           // Update media recorder to resume
           mediaRecorder.resume();
+          recordingStatus.textContent = "Recording in progress";
+          recordingStatus.className = "recording-in-progress"; // Resume pulsing red style
           // Let the client know the recording is resumed
           console.log("Recording resumed");
           // Hide the resume button and show the pause button

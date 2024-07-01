@@ -1,19 +1,84 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>User Details</title>
+    <title>Blender Products Meeting Recorder</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f4f4f4;
+        padding: 40px;
+      }
+      form {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        width: 300px;
+        margin: auto;
+      }
+      h1 {
+        text-align: center;
+        color: #333;
+      }
+      label {
+        display: block;
+        margin-top: 20px;
+        color: #666;
+      }
+      input[type="text"],
+      select {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        width: 100%;
+        padding: 10px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        margin-top: 20px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+    </style>
   </head>
   <body>
-    <h1>Please input your name and the date to get started.</h1>
+    <h1>Select your name and enter the name of your direct report.</h1>
     <form method="POST">
+      <select id="username" name="username" required>
+        <option value="Dave Dorste">Dave Dorste</option>
+        <option value="Travis Starns">Travis Starns</option>
+        <option value="Mark Pavol">Mark Pavol</option>
+        <option value="Paul Filby">Paul Filby</option>
+        <option value="Steve Hill">Steve Hill</option>
+        <option value="Pat Tierney">Pat Tierney</option>
+        <option value="Alex Beeck">Alex Beeck</option>
+        <option value="Ignacio Carrion">Ignacio Carrion</option>
+      </select>
+      <label for="firstname">First Name:</label>
       <input
         type="text"
-        id="username"
-        name="username"
-        placeholder="Your Name"
+        id="firstname"
+        name="firstname"
+        placeholder="Direct Report First Name"
         required
       />
-      <input type="date" id="date" name="date" required />
+
+      <label for="lastname">Last Name:</label>
+      <input
+        type="text"
+        id="lastname"
+        name="lastname"
+        placeholder="Direct Report Last Name"
+        required
+      />
       <button type="submit">Submit</button>
     </form>
   </body>

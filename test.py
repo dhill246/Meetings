@@ -66,4 +66,4 @@ def delete_all_files():
 # print(download_test("NOWAYTHISWORKS_2024-06-30/2.webm", "2.webm"))
 # print(download_test("NOWAYTHISWORKS_2024-06-30/3.webm", "3.webm"))
 
-print(list_test())
+print(delete_all_files())

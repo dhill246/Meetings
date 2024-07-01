@@ -1,21 +1,28 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
 from flask_socketio import SocketIO, emit
 import os
 import boto3
 from io import BytesIO
 import logging
+from datetime import datetime
 
+# Get today's date
+today = datetime.now()
+
+# Format the date
+DATE = today.strftime("%m_%d_%Y")
 
 # Initialize Flask app
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY")
 # Initialize socket for listening
 socketio = SocketIO(app)
 # Set up basic logging output for the app
 logging.basicConfig(level=logging.INFO)
 
 # Initialize audio stream dict to hold audio even when paused
-AUDIO_STREAMS = {}
 bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
+
 # Connect to S3 bucketeer
 s3_client = boto3.client(
     's3',
@@ -28,18 +35,47 @@ def index():
     # If post request is sent, get the specified username and date
     # then proceed to the recording page
     # Otherwise return the index page
-    if request.method == "POST":
-        username = request.form['username']
-        date = request.form['date']
-        return redirect(url_for('record', username=username, date=date))
+    if "username" not in session:
+        return redirect(url_for("login"))
+    else:
+        if request.method == "POST":
+            username = request.form['username']
+            firstname = request.form['firstname']
+            lastname = request.form['lastname']
+
+            return redirect(url_for('record', username=username, firstname=firstname,
+                                    lastname=lastname, date=DATE))
     return render_template('index.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        app.logger.info(request.form)
+
+        username = request.form['username']
+        password = request.form['password']
+        app.logger.info(os.getenv("BLENDER_USERNAME"))
+        app.logger.info(os.getenv("BLENDER_PASSWORD"))
+        if username == os.getenv("BLENDER_USERNAME") and password == os.getenv("BLENDER_PASSWORD"):
+            session['username'] = username
+            return redirect(url_for('index'))
+        else:
+            return 'Invalid credentials'
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('index'))
 
 @app.route('/record')
 def record():
     # Save the username and date for passing to the recording template
     username = request.args.get('username', '')
     date = request.args.get('date', '')
-    return render_template('record.html', username=username, date=date)
+    firstname = request.args.get('firstname', '')
+    lastname = request.args.get('lastname', '')
+    return render_template('record.html', username=username, date=date, firstname=firstname, lastname=lastname)
 
 @socketio.on('audio_chunk')
 def handle_audio_chunk(data):
