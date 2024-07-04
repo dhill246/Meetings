@@ -9,6 +9,14 @@
         background-color: #f4f4f4;
         padding: 40px;
       }
+      #mainContainer {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        width: 80%;
+        margin: auto;
+      }
       form,
       #statusMessage,
       canvas {
@@ -118,33 +126,42 @@
     </style>
   </head>
   <body>
-    <h1>Welcome.</h1>
-    <h3>
-      One on One Meeting between {{ username }} and {{ firstname }} {{ lastname
-      }} on {{ date }}.
-    </h3>
-    <button id="startButton" onclick="startRecording()">Start Recording</button>
-    <button id="stopButton" onclick="stopRecording()" style="display: none">
-      End and Save Recording
-    </button>
-    <button id="pauseButton" onclick="pauseRecording()" style="display: none">
-      Pause Recording
-    </button>
-    <button id="resumeButton" onclick="resumeRecording()" style="display: none">
-      Resume Recording
-    </button>
-    <div id="statusMessage" style="display: none">Recording Complete</div>
-    <div id="recordingStatus" class="recording-stopped">Recording stopped</div>
-    <div id="timer">00:00:00</div>
-    <div id="warningMessage">
-      5 minutes remaining until meeting automatically terminates.
-    </div>
-    <div
-      id="pauseMessage"
-      style="display: none; color: red; text-align: center; margin-top: 10px"
-    >
-      If the meeting is paused for more than 15 minutes, the meeting will be
-      terminated.
+    <div id="mainContainer">
+      <h2>
+        One on One Meeting between {{ username }} and {{ firstname }} {{
+        lastname }} on {{ date }}.
+      </h2>
+      <button id="startButton" onclick="startRecording()">
+        Start Recording
+      </button>
+      <button id="stopButton" onclick="stopRecording()" style="display: none">
+        End and Save Recording
+      </button>
+      <button id="pauseButton" onclick="pauseRecording()" style="display: none">
+        Pause Recording
+      </button>
+      <button
+        id="resumeButton"
+        onclick="resumeRecording()"
+        style="display: none"
+      >
+        Resume Recording
+      </button>
+      <div id="statusMessage" style="display: none">Recording Complete</div>
+      <div id="recordingStatus" class="recording-stopped">
+        Recording stopped
+      </div>
+      <div id="timer">00:00:00</div>
+      <div id="warningMessage">
+        5 minutes remaining until meeting automatically terminates.
+      </div>
+      <div
+        id="pauseMessage"
+        style="display: none; color: red; text-align: center; margin-top: 10px"
+      >
+        If the meeting is paused for more than 15 minutes, the meeting will be
+        terminated.
+      </div>
     </div>
     <button id="backButton" onclick="goBack()">Back</button>
     <script>
