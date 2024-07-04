@@ -111,22 +111,28 @@ def handle_audio_chunk(data):
     key = data["key"]
     audio = data["audioData"]
 
-    if audio != {}:
-        # Create a BytesIO stream for this chunk
-        audio_stream = BytesIO(audio)
-        audio_stream.seek(0)
+    file_name = key.split("/")[-1]
+    number = int(file_name.split(".")[0])
 
-        # Log chunk size
-        app.logger.info("Appending chunk of size %d to stream for key: %s", len(audio), key)
-        
-        # Upload the file to S3
-        try:
-            s3_client.upload_fileobj(audio_stream, bucket_name, key)
-            app.logger.info("Upload succeeded for key: %s", key)
-        except Exception as e:
-            app.logger.error("Upload failed for key: %s with error: %s", key, e)
-        
-        audio_stream.close()
+    if number < 65:
+        app.logger.info(number)
+
+
+        if audio != {}:
+            # Create a BytesIO stream for this chunk
+            audio_stream = BytesIO(audio)
+            audio_stream.seek(0)
+
+            # Log chunk size
+            app.logger.info("Appending chunk of size %d to stream for key: %s", len(audio), key)
+            
+            # Upload the file to S3
+            try:
+                s3_client.upload_fileobj(audio_stream, bucket_name, key)
+                app.logger.info("Upload succeeded for key: %s", key)
+            except Exception as e:
+                app.logger.error("Upload failed for key: %s with error: %s", key, e)
+            audio_stream.close()
 
 
 @socketio.on('audio_end')
