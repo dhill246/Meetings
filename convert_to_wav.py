@@ -28,5 +28,3 @@ def convert_to_wav(input_file, output_file):
 
 if __name__ == "__main__":
     convert_to_wav("1.webm", "1.wav")
-    convert_to_wav("2.webm", "2.wav")
-    convert_to_wav("3.webm", "3.wav")

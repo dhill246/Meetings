@@ -2,6 +2,7 @@ import boto3
 import os
 from dotenv import load_dotenv
 load_dotenv()
+from convert_to_wav import convert_to_wav
 
 AUDIO_FOLDER = 'audio_files'
 name = "Daniel"
@@ -45,7 +46,7 @@ def list_test():
 def download_test(object_key, download_name):
 
     # Local path where you want to save the downloaded file
-    local_file_path = os.path.join('C:\\Users\\Daniel Hill\\Documents\\HerokuNew', download_name)
+    local_file_path = os.path.join('C:\\Users\\Daniel Hill\\Documents\\HerokuNew\\BlenderTranscriptionProject\\CheckAudioWebm', download_name)
 
     # Download the file
     s3_client.download_file(bucket_name, object_key, local_file_path)
@@ -62,8 +63,7 @@ def delete_all_files():
     else:
         print("No objects in bucket to delete.")
 
-# print(download_test("NOWAYTHISWORKS_2024-06-30/1.webm", "1.webm"))
-# print(download_test("NOWAYTHISWORKS_2024-06-30/2.webm", "2.webm"))
-# print(download_test("NOWAYTHISWORKS_2024-06-30/3.webm", "3.webm"))
-
-print(delete_all_files())
+list_bucket = list_test()
+for value, item in enumerate(list_bucket):
+    download_test(item, f"{value}.webm")
+    convert_to_wav(f"CheckAudioWebm/{value}.webm", f"CheckAudioWav/{value}.wav")

@@ -1,16 +1,16 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_socketio import SocketIO, emit
 import os
 import boto3
 from io import BytesIO
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Get today's date
 today = datetime.now()
 
 # Format the date
-DATE = today.strftime("%m_%d_%Y")
+DATE = today.strftime("%m-%d-%Y")
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -23,12 +23,31 @@ logging.basicConfig(level=logging.INFO)
 # Initialize audio stream dict to hold audio even when paused
 bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
 
+# Dictionary to keep track of active recordings
+active_recordings = {}
+
 # Connect to S3 bucketeer
 s3_client = boto3.client(
     's3',
     aws_access_key_id=os.getenv('BUCKETEER_AWS_ACCESS_KEY_ID'),
     aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
 )
+
+def check_existing_s3_files():
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    list_of_files = []
+
+    # Check if 'Contents' key is in the response (it won't be if the bucket is empty)
+    if 'Contents' in response:
+        for item in response['Contents']:
+            print(item['Key'], item['LastModified'], item['Size'])
+            list_of_files.append(item["Key"])
+
+        return list_of_files
+    else:
+        print("No items in the bucket.")
+        return []
+
 
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -75,7 +94,15 @@ def record():
     date = request.args.get('date', '')
     firstname = request.args.get('firstname', '')
     lastname = request.args.get('lastname', '')
-    return render_template('record.html', username=username, date=date, firstname=firstname, lastname=lastname)
+
+    list_s3 = check_existing_s3_files()
+    list_s3 = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
+
+    if f"{username}/{firstname}{lastname}/{date}" in list_s3:
+        return render_template('error.html')
+
+    else:
+        return render_template('record.html', username=username, date=date, firstname=firstname, lastname=lastname)
 
 @socketio.on('audio_chunk')
 def handle_audio_chunk(data):

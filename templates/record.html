@@ -86,6 +86,35 @@
           opacity: 1;
         }
       }
+      #timer {
+        text-align: center;
+        font-size: 20px;
+        margin-top: 20px;
+      }
+
+      #warningMessage {
+        text-align: center;
+        font-size: 16px;
+        color: red;
+        margin-top: 10px;
+        display: none;
+      }
+
+      /* Custom style for the backButton */
+      #backButton {
+        background-color: #6162a3; /* Custom background color */
+        color: white;
+        border: none;
+        border-radius: 4px;
+        margin-top: 20px;
+        padding: 10px;
+        cursor: pointer;
+        width: 100%;
+      }
+
+      #backButton:hover {
+        background-color: #383966; /* Darker shade on hover */
+      }
     </style>
   </head>
   <body>
@@ -106,18 +135,110 @@
     </button>
     <div id="statusMessage" style="display: none">Recording Complete</div>
     <div id="recordingStatus" class="recording-stopped">Recording stopped</div>
-    <button onclick="goBack()">Back</button>
+    <div id="timer">00:00:00</div>
+    <div id="warningMessage">
+      5 minutes remaining until meeting automatically terminates.
+    </div>
+    <div
+      id="pauseMessage"
+      style="display: none; color: red; text-align: center; margin-top: 10px"
+    >
+      If the meeting is paused for more than 15 minutes, the meeting will be
+      terminated.
+    </div>
+    <button id="backButton" onclick="goBack()">Back</button>
     <script>
       let mediaRecorder;
       let stream; // Global variable to hold the media stream
       let segmentCounter = 0;
       let segmentInterval;
+      let pauseTimeout;
       const socket = io();
+
+      let startTime,
+        updatedTime,
+        difference,
+        tInterval,
+        savedTime = 0,
+        paused = 0,
+        running = 0;
 
       const username = "{{ username }}";
       const firstname = "{{ firstname }}";
       const lastname = "{{ lastname }}";
       const date = "{{ date }}";
+
+      function startTimer() {
+        if (!running) {
+          startTime = new Date().getTime();
+          tInterval = setInterval(getShowTime, 1);
+          paused = 0;
+          running = 1;
+        }
+      }
+
+      function pauseTimer() {
+        if (!paused && running) {
+          clearInterval(tInterval);
+          savedTime = difference;
+          paused = 1;
+          running = 0;
+        }
+      }
+
+      function resumeTimer() {
+        if (paused) {
+          startTime = new Date().getTime();
+          tInterval = setInterval(getShowTime, 1);
+          paused = 0;
+          running = 1;
+        }
+      }
+
+      function resetTimer() {
+        clearInterval(tInterval);
+        savedTime = 0;
+        difference = 0;
+        paused = 0;
+        running = 0;
+        document.getElementById("timer").innerHTML = "00:00:00";
+        document.getElementById("warningMessage").style.display = "none";
+        document.getElementById("timer").style.color = "black";
+      }
+
+      function getShowTime() {
+        updatedTime = new Date().getTime();
+        difference = savedTime + (updatedTime - startTime);
+        let hours = Math.floor(
+          (difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+        );
+        let minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+        let seconds = Math.floor((difference % (1000 * 60)) / 1000);
+        hours = hours < 10 ? "0" + hours : hours;
+        minutes = minutes < 10 ? "0" + minutes : minutes;
+        seconds = seconds < 10 ? "0" + seconds : seconds;
+        document.getElementById("timer").innerHTML =
+          hours + ":" + minutes + ":" + seconds;
+
+        // Check if 60 minutes have passed
+        if (hours == 1 && minutes >= 0) {
+          document.getElementById("timer").style.color = "red";
+          document.getElementById("warningMessage").style.display = "block";
+
+          // Automatically stop recording after 65 minutes
+          if (minutes == 5) {
+            stopRecording();
+          }
+        }
+      }
+
+      function startSegmentInterval() {
+        segmentInterval = setInterval(() => {
+          if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+          }
+        }, 60000); // Stop the recording every minute
+      }
 
       function startRecording() {
         navigator.mediaDevices
@@ -134,15 +255,11 @@
             mediaRecorder.start();
 
             segmentCounter = 1;
-            segmentInterval = setInterval(() => {
-              if (mediaRecorder.state !== "inactive") {
-                mediaRecorder.stop();
-              }
-            }, 60000); // Stop the recording every minute
+            startSegmentInterval();
 
             mediaRecorder.ondataavailable = function (event) {
               if (event.data.size > 0) {
-                const fileKey = `${username}_${firstname}${lastname}_${date}/${segmentCounter}.webm`;
+                const fileKey = `${username}/${firstname}${lastname}/${date}/${segmentCounter}.webm`;
                 segmentCounter++;
                 socket.emit("audio_chunk", {
                   audioData: event.data,
@@ -157,6 +274,7 @@
                 }
               }
             };
+            startTimer(); // Start the timer when recording starts
           })
           .catch((error) => {
             if (
@@ -202,6 +320,7 @@
           };
 
           mediaRecorder.stop();
+          clearInterval(tInterval); // Stop the timer
           recordingStatus.textContent = "Recording stopped";
           recordingStatus.className = "recording-stopped"; // Change to gray
           console.log("Recording stopped");
@@ -209,6 +328,9 @@
           document.getElementById("pauseButton").style.display = "none";
           document.getElementById("resumeButton").style.display = "none";
           document.getElementById("statusMessage").style.display = "block";
+
+          // Hide the message about the 1-hour pause limit
+          document.getElementById("pauseMessage").style.display = "none";
         } else {
           console.log("Recorder is inactive or not defined");
         }
@@ -226,6 +348,15 @@
           // Hide the pause button and show the resume button
           document.getElementById("pauseButton").style.display = "none";
           document.getElementById("resumeButton").style.display = "block";
+          pauseTimer(); // Pause the timer
+          clearInterval(segmentInterval); // Clear the segment interval
+
+          // Show the message about the 15 minute pause limit
+          document.getElementById("pauseMessage").style.display = "block";
+          // Set a timeout to stop recording if paused for more than an hour
+          pauseTimeout = setTimeout(() => {
+            stopRecording();
+          }, 900000); // 30 seconds in milliseconds
         }
       }
 
@@ -241,10 +372,18 @@
           // Hide the resume button and show the pause button
           document.getElementById("resumeButton").style.display = "none";
           document.getElementById("pauseButton").style.display = "block";
+          resumeTimer(); // Resume the timer
+          startSegmentInterval(); // Restart the segment interval
+
+          clearTimeout(pauseTimeout); // Clear the pause timeout as recording has resumed
+
+          // Hide the message about the 15 minute pause limit
+          document.getElementById("pauseMessage").style.display = "none";
         }
       }
 
       function goBack() {
+        stopRecording();
         // Go back one page
         window.history.back();
       }

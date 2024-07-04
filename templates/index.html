@@ -52,6 +52,7 @@
   <body>
     <h1>Select your name and enter the name of your direct report.</h1>
     <form method="POST">
+      <p>Your Name:</p>
       <select id="username" name="username" required>
         <option value="Dave Dorste">Dave Dorste</option>
         <option value="Travis Starns">Travis Starns</option>
@@ -62,7 +63,7 @@
         <option value="Alex Beeck">Alex Beeck</option>
         <option value="Ignacio Carrion">Ignacio Carrion</option>
       </select>
-      <label for="firstname">First Name:</label>
+      <label for="firstname">Direct Report First Name:</label>
       <input
         type="text"
         id="firstname"
@@ -70,8 +71,7 @@
         placeholder="Direct Report First Name"
         required
       />
-
-      <label for="lastname">Last Name:</label>
+      <label for="lastname">Direct Report Last Name:</label>
       <input
         type="text"
         id="lastname"
