@@ -254,8 +254,7 @@
           if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
           }
-          // CHANGE THIS BACK I MADE IT 15 SECONDS FOR TESTING PURPOSES
-        }, 60000 / 6); // Stop the recording every minute
+        }, 60000 / 4); // Stop the recording every 15 seconds
       }
 
       function startRecording() {

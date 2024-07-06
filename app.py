@@ -110,7 +110,7 @@ def handle_audio_chunk(data):
     file_name = key.split("/")[-1]
     number = int(file_name.split(".")[0])
 
-    if number < 65:
+    if number < 260:
 
         if audio != {}:
             # Create a BytesIO stream for this chunk
