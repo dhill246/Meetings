@@ -254,7 +254,8 @@
           if (mediaRecorder && mediaRecorder.state !== "inactive") {
             mediaRecorder.stop();
           }
-        }, 60000); // Stop the recording every minute
+          // CHANGE THIS BACK I MADE IT 15 SECONDS FOR TESTING PURPOSES
+        }, 60000 / 6); // Stop the recording every minute
       }
 
       function startRecording() {
@@ -375,7 +376,7 @@
           // Set a timeout to stop recording if paused for more than an hour
           pauseTimeout = setTimeout(() => {
             stopRecording();
-          }, 900000); // 30 seconds in milliseconds
+          }, 900000); // 15 minutes in milliseconds
         }
       }
 
