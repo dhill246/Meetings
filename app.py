@@ -4,180 +4,119 @@ import os
 import boto3
 from io import BytesIO
 import logging
-from datetime import datetime, timedelta
-from threading import Thread
-from queue import Queue
-
-# Get today's date
-today = datetime.now()
-
-# Format the date
-DATE = today.strftime("%m-%d-%Y")
-
-# Initialize Flask app
-app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY")
-# Initialize socket for listening
-socketio = SocketIO(app)
-# Set up basic logging output for the app
-logging.basicConfig(level=logging.INFO)
-
-# Initialize audio stream dict to hold audio even when paused
-bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
-
-# Dictionary to keep track of active recordings
-active_recordings = {}
-
-# Connect to S3 bucketeer
-s3_client = boto3.client(
-    's3',
-    aws_access_key_id=os.getenv('BUCKETEER_AWS_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
-)
-
-def check_existing_s3_files():
-    response = s3_client.list_objects_v2(Bucket=bucket_name)
-    list_of_files = []
-
-    # Check if 'Contents' key is in the response (it won't be if the bucket is empty)
-    if 'Contents' in response:
-        for item in response['Contents']:
-            print(item['Key'], item['LastModified'], item['Size'])
-            list_of_files.append(item["Key"])
-
-        return list_of_files
-    else:
-        print("No items in the bucket.")
-        return []
+from datetime import datetime
+from utils.s3Uploads import check_existing_s3_files, upload_to_s3
 
 
-@app.route('/', methods=["GET", "POST"])
-def index():
-    # If post request is sent, get the specified username and date
-    # then proceed to the recording page
-    # Otherwise return the index page
-    if "username" not in session:
-        return redirect(url_for("login"))
-    else:
-        if request.method == "POST":
-            username = request.form['username']
-            firstname = request.form['firstname']
-            lastname = request.form['lastname']
-
-            return redirect(url_for('record', username=username, firstname=firstname,
-                                    lastname=lastname, date=DATE))
-    return render_template('index.html')
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        app.logger.info(request.form)
-
-        username = request.form['username']
-        password = request.form['password']
-        app.logger.info(os.getenv("BLENDER_USERNAME"))
-        app.logger.info(os.getenv("BLENDER_PASSWORD"))
-        if username == os.getenv("BLENDER_USERNAME") and password == os.getenv("BLENDER_PASSWORD"):
-            session['username'] = username
-            return redirect(url_for('index'))
-        else:
-            return 'Invalid credentials'
-    return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    session.pop('username', None)
-    return redirect(url_for('index'))
-
-@app.route('/record')
-def record():
-    # Save the username and date for passing to the recording template
-    username = request.args.get('username', '')
-    date = request.args.get('date', '')
-    firstname = request.args.get('firstname', '')
-    lastname = request.args.get('lastname', '')
-
-    list_s3 = check_existing_s3_files()
-    list_s3 = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
-
-    if f"{username}/{firstname}{lastname}/{date}" in list_s3:
-        return render_template('error.html')
-
-    else:
-        return render_template('record.html', username=username, date=date, firstname=firstname, lastname=lastname)
-    
-# Queue to handle uploads
-upload_queue = Queue()
-
-def upload_worker():
-    while True:
-        key, audio = upload_queue.get()
-        if key is None:
-            break
-
-        audio_stream = BytesIO(audio)
-        audio_stream.seek(0)
+def create_app():
+    # Initialize Flask app
+    app = Flask(__name__)
+    app.secret_key = os.environ.get("SECRET_KEY")
+    # Initialize socket for listening
+    socketio = SocketIO(app)
+    # Set up basic logging output for the app
+    logging.basicConfig(level=logging.INFO)
         
-        try:
-            s3_client.upload_fileobj(audio_stream, bucket_name, key)
-            app.logger.info("Upload succeeded for key: %s", key)
-        except Exception as e:
-            app.logger.error("Upload failed for key: %s with error: %s", key, e)
-        audio_stream.close()
+    @app.route('/', methods=["GET", "POST"])
+    def index():
+        # If post request is sent, get the specified username and date
+        # then proceed to the recording page
+        # Otherwise return the index page
+        if "username" not in session:
+            return redirect(url_for("login"))
+        else:
+            if request.method == "POST":
+                username = request.form['username']
+                firstname = request.form['firstname']
+                lastname = request.form['lastname']
 
-upload_thread = Thread(target=upload_worker)
-upload_thread.start()
+                # Get today's date
+                today = datetime.now()
 
-@socketio.on('audio_chunk')
-def handle_audio_chunk(data):
-    # When audio_chunk is sent by the client, which
-    # happens frequently, get that data (webm file)
-    key = data["key"]
-    audio = data["audioData"]
+                # Format the date
+                DATE = today.strftime("%m-%d-%Y")
 
-    file_name = key.split("/")[-1]
-    number = int(file_name.split(".")[0])
+                return redirect(url_for('record', username=username, firstname=firstname,
+                                        lastname=lastname, date=DATE))
+        return render_template('index.html')
 
-    if number < 65:
-        app.logger.info(number)
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        if request.method == 'POST':
+            app.logger.info(request.form)
+
+            username = request.form['username']
+            password = request.form['password']
+            if username == os.getenv("BLENDER_USERNAME") and password == os.getenv("BLENDER_PASSWORD"):
+                session['username'] = username
+                return redirect(url_for('index'))
+            else:
+                return 'Invalid credentials'
+        return render_template('login.html')
+
+    @app.route('/logout')
+    def logout():
+        session.pop('username', None)
+        return redirect(url_for('index'))
+
+    @app.route('/record')
+    def record():
+        # Save the username and date for passing to the recording template
+        username = request.args.get('username', '')
+        date = request.args.get('date', '')
+        firstname = request.args.get('firstname', '')
+        lastname = request.args.get('lastname', '')
+
+        list_s3 = check_existing_s3_files()
+        list_s3 = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
+
+        if f"{username}/{firstname}{lastname}/{date}" in list_s3:
+            return render_template('error.html')
+
+        else:
+            return render_template('record.html', username=username, date=date, firstname=firstname, lastname=lastname)
+        
+    @socketio.on('audio_chunk')
+    def handle_audio_chunk(data):
+        # When audio_chunk is sent by the client, which
+        # happens frequently, get that data (webm file)
+        key = data["key"]
+        audio = data["audioData"]
+
+        file_name = key.split("/")[-1]
+        number = int(file_name.split(".")[0])
+
+        if number < 65:
+            app.logger.info(number)
 
 
-        if audio != {}:
-            # Create a BytesIO stream for this chunk
-            # audio_stream = BytesIO(audio)
-            # audio_stream.seek(0)
+            if audio != {}:
+                # Create a BytesIO stream for this chunk
+                audio_stream = BytesIO(audio)
+                audio_stream.seek(0)
 
-            # Log chunk size
-            app.logger.info("Appending chunk of size %d to stream for key: %s", len(audio), key)
-            upload_queue.put((key, audio))
-            
-            # Upload the file to S3
-            # try:
-            #     s3_client.upload_fileobj(audio_stream, bucket_name, key)
-            #     app.logger.info("Upload succeeded for key: %s", key)
-            # except Exception as e:
-            #     app.logger.error("Upload failed for key: %s with error: %s", key, e)
-            # audio_stream.close()
+                # Log chunk size
+                app.logger.info("Appending chunk of size %d to stream for key: %s", len(audio), key)
+                
+                # Upload the file to S3
+                try:
+                    upload_to_s3(audio_stream, key)
+                    app.logger.info("Upload succeeded for key: %s", key)
 
-@socketio.on('audio_end')
-def handle_audio_end(data):
-    name = data['username']
-    date = data['date']
-    key_prefix = f"{name}_{date}"
-    app.logger.info(f"Recording ended for {key_prefix}")
+                except Exception as e:
+                    app.logger.error("Upload failed for key: %s with error: %s", key, e)
+                audio_stream.close()
+
+    @socketio.on('audio_end')
+    def handle_audio_end(data):
+        name = data['username']
+        date = data['date']
+        key_prefix = f"{name}_{date}"
+        app.logger.info(f"Recording ended for {key_prefix}")
+
+
+    return app, socketio
 
 if __name__ == '__main__':
+    app, socketio = create_app()
     socketio.run(app)
-
-# Ensure to shut down the worker thread gracefully
-@app.before_first_request
-def start_background_thread():
-    global upload_thread
-    if not upload_thread.is_alive():
-        upload_thread = Thread(target=upload_worker)
-        upload_thread.start()
-
-@app.teardown_appcontext
-def stop_background_thread(exception=None):
-    upload_queue.put((None, None))
-    upload_thread.join()
