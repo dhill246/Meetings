@@ -1,0 +1,113 @@
+body {
+  font-family: "Arial", sans-serif;
+  background-color: #f4f4f4;
+  padding: 40px;
+}
+#mainContainer {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 80%;
+  margin: auto;
+}
+form,
+#statusMessage,
+canvas {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 300px;
+  margin: 20px auto;
+  display: block;
+}
+h1,
+h3 {
+  text-align: center;
+  color: #333;
+}
+select,
+input[type="text"],
+button {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  margin-top: 20px;
+  cursor: pointer;
+}
+button:hover {
+  background-color: #0056b3;
+}
+#statusMessage {
+  text-align: center;
+  color: #333;
+  display: none; /* hidden by default */
+}
+canvas {
+  display: block; /* ensures the canvas is not inline */
+  background: #fff; /* white background for visibility */
+  border: 1px solid #ccc; /* consistent with other elements */
+  margin-top: 20px;
+}
+#recordingStatus {
+  color: gray; /* Default color */
+  text-align: center;
+  padding: 10px;
+  font-size: 20px;
+  border-radius: 5px;
+  transition: color 0.5s ease; /* Smooth transition for color changes */
+}
+.recording-in-progress {
+  color: red;
+  animation: pulse 1s infinite; /* Animation for pulsing effect */
+}
+.recording-stopped {
+  color: gray;
+}
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+#timer {
+  text-align: center;
+  font-size: 20px;
+  margin-top: 20px;
+}
+#warningMessage {
+  text-align: center;
+  font-size: 16px;
+  color: red;
+  margin-top: 10px;
+  display: none;
+}
+/* Custom style for the backButton */
+#backButton {
+  background-color: #6162a3; /* Custom background color */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  margin-top: 20px;
+  padding: 10px;
+  cursor: pointer;
+  width: 100%;
+}
+#backButton:hover {
+  background-color: #383966; /* Darker shade on hover */
+}
