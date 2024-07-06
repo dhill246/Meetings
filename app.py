@@ -5,6 +5,8 @@ import boto3
 from io import BytesIO
 import logging
 from datetime import datetime, timedelta
+from threading import Thread
+from queue import Queue
 
 # Get today's date
 today = datetime.now()
@@ -103,6 +105,28 @@ def record():
 
     else:
         return render_template('record.html', username=username, date=date, firstname=firstname, lastname=lastname)
+    
+# Queue to handle uploads
+upload_queue = Queue()
+
+def upload_worker():
+    while True:
+        key, audio = upload_queue.get()
+        if key is None:
+            break
+
+        audio_stream = BytesIO(audio)
+        audio_stream.seek(0)
+        
+        try:
+            s3_client.upload_fileobj(audio_stream, bucket_name, key)
+            app.logger.info("Upload succeeded for key: %s", key)
+        except Exception as e:
+            app.logger.error("Upload failed for key: %s with error: %s", key, e)
+        audio_stream.close()
+
+upload_thread = Thread(target=upload_worker)
+upload_thread.start()
 
 @socketio.on('audio_chunk')
 def handle_audio_chunk(data):
@@ -120,20 +144,20 @@ def handle_audio_chunk(data):
 
         if audio != {}:
             # Create a BytesIO stream for this chunk
-            audio_stream = BytesIO(audio)
-            audio_stream.seek(0)
+            # audio_stream = BytesIO(audio)
+            # audio_stream.seek(0)
 
             # Log chunk size
             app.logger.info("Appending chunk of size %d to stream for key: %s", len(audio), key)
+            upload_queue.put((key, audio))
             
             # Upload the file to S3
-            try:
-                s3_client.upload_fileobj(audio_stream, bucket_name, key)
-                app.logger.info("Upload succeeded for key: %s", key)
-            except Exception as e:
-                app.logger.error("Upload failed for key: %s with error: %s", key, e)
-            audio_stream.close()
-
+            # try:
+            #     s3_client.upload_fileobj(audio_stream, bucket_name, key)
+            #     app.logger.info("Upload succeeded for key: %s", key)
+            # except Exception as e:
+            #     app.logger.error("Upload failed for key: %s with error: %s", key, e)
+            # audio_stream.close()
 
 @socketio.on('audio_end')
 def handle_audio_end(data):
@@ -144,3 +168,16 @@ def handle_audio_end(data):
 
 if __name__ == '__main__':
     socketio.run(app)
+
+# Ensure to shut down the worker thread gracefully
+@app.before_first_request
+def start_background_thread():
+    global upload_thread
+    if not upload_thread.is_alive():
+        upload_thread = Thread(target=upload_worker)
+        upload_thread.start()
+
+@app.teardown_appcontext
+def stop_background_thread(exception=None):
+    upload_queue.put((None, None))
+    upload_thread.join()
