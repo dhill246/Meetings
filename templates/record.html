@@ -330,10 +330,12 @@
               });
             }, 1000); // Adjust the delay as necessary
 
-            // Release the microphone
-            stream.getTracks().forEach((track) => track.stop());
-            stream = null;
-            mediaRecorder = null;
+            if (stream) {
+              // Release the microphone
+              stream.getTracks().forEach((track) => track.stop());
+              stream = null;
+              mediaRecorder = null;
+            }
           };
 
           mediaRecorder.stop();
