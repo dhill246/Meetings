@@ -16,6 +16,8 @@ socketio = SocketIO(app)
 # Set up basic logging output for the app
 logging.basicConfig(level=logging.INFO)
 
+# TODO -- Delete all this and fix bug that 
+# releases audio when this gets moved
 bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
 
 # Connect to S3 bucketeer
