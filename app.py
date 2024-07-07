@@ -6,15 +6,10 @@ from io import BytesIO
 import logging
 from datetime import datetime
 from utils.s3Uploads import check_existing_s3_files, upload_to_s3
-from rq import Queue
-from s3_upload_worker import conn
 
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
-
-# Initialize redis queue for background jobs
-q = Queue(connection=conn)
 
 # Initialize socket for listening
 socketio = SocketIO(app)
@@ -101,11 +96,11 @@ def handle_audio_chunk(data):
             
             # Upload the file to S3
             try:
-                job = q.enqueue(upload_to_s3, audio_stream, key)
-                app.logger.info("Enqueued upload job for key: %s with job id: %s", key, job.get_id())
+                upload_to_s3(audio_stream, key)
+                app.logger.info("Upload succeeded for key: %s", key)
 
             except Exception as e:
-                app.logger.error("Failed to enqueue upload job for key: %s with error: %s", key, e)
+                app.logger.error("Upload failed for key: %s with error: %s", key, e)
 
             audio_stream.close()
 
