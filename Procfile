@@ -1,1 +1,2 @@
-web: gunicorn -k eventlet -w 1 app:app
+web: python app.py
+worker: python s3_upload_worker.py

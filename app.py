@@ -5,42 +5,21 @@ import boto3
 from io import BytesIO
 import logging
 from datetime import datetime
-# from utils.s3Uploads import check_existing_s3_files, upload_to_s3
+from utils.s3Uploads import check_existing_s3_files, upload_to_s3
+from rq import Queue
+from s3_upload_worker import conn
 
 # Initialize Flask app
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
+
+# Initialize redis queue for background jobs
+q = Queue(connection=conn)
+
 # Initialize socket for listening
 socketio = SocketIO(app)
 # Set up basic logging output for the app
 logging.basicConfig(level=logging.INFO)
-
-bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
-
-# Connect to S3 bucketeer
-s3_client = boto3.client(
-    's3',
-    aws_access_key_id=os.getenv('BUCKETEER_AWS_ACCESS_KEY_ID'),
-    aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
-)
-
-def check_existing_s3_files():
-    response = s3_client.list_objects_v2(Bucket=bucket_name)
-    list_of_files = []
-
-    # Check if 'Contents' key is in the response (it won't be if the bucket is empty)
-    if 'Contents' in response:
-        for item in response['Contents']:
-            print(item['Key'], item['LastModified'], item['Size'])
-            list_of_files.append(item["Key"])
-
-        return list_of_files
-    else:
-        print("No items in the bucket.")
-        return []
-    
-def upload_to_s3(audio_stream, key, bucket_name=bucket_name):
-    s3_client.upload_fileobj(audio_stream, bucket_name, key)
     
 @app.route('/', methods=["GET", "POST"])
 def index():
@@ -122,11 +101,11 @@ def handle_audio_chunk(data):
             
             # Upload the file to S3
             try:
-                upload_to_s3(audio_stream, key)
-                app.logger.info("Upload succeeded for key: %s", key)
+                job = q.enqueue(upload_to_s3, audio_stream, key)
+                app.logger.info("Enqueued upload job for key: %s with job id: %s", key, job.get_id())
 
             except Exception as e:
-                app.logger.error("Upload failed for key: %s with error: %s", key, e)
+                app.logger.error("Failed to enqueue upload job for key: %s with error: %s", key, e)
 
             audio_stream.close()
 
