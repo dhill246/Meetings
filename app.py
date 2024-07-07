@@ -1,20 +1,42 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_socketio import SocketIO, emit
+from flask_migrate import Migrate
 import os
 import boto3
 from io import BytesIO
 import logging
 from datetime import datetime
+from models import db, User
+from functools import wraps
 # from utils.s3Uploads import check_existing_s3_files, upload_to_s3
 
 # Initialize Flask app
 app = Flask(__name__)
+
+# Setting a secret key for secure sessions and cookies
 app.secret_key = os.environ.get("SECRET_KEY")
 
 # Initialize socket for listening
 socketio = SocketIO(app)
+
 # Set up basic logging output for the app
 logging.basicConfig(level=logging.INFO)
+
+# Database connection string
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
+
+# Disable SQLAlchemy event system to save resources
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize the database connection
+db.init_app(app)
+
+# Enable migration
+migrate = Migrate(app, db)
+
+# Create database tables that don't exist yet
+with app.app_context():
+    db.create_all()
 
 # TODO -- Delete all this and fix bug that 
 # releases audio when this gets moved
@@ -45,28 +67,37 @@ def check_existing_s3_files():
 
 def upload_to_s3(audio_stream, key, bucket_name=bucket_name):
     s3_client.upload_fileobj(audio_stream, bucket_name, key)
+
+# Wrapper function to restrict access to pages
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
     
 @app.route('/', methods=["GET", "POST"])
+@login_required
 def index():
     # If post request is sent, get the specified username and date
     # then proceed to the recording page
     # Otherwise return the index page
-    if "username" not in session:
-        return redirect(url_for("login"))
-    else:
-        if request.method == "POST":
-            username = request.form['username']
-            firstname = request.form['firstname']
-            lastname = request.form['lastname']
 
-            # Get today's date
-            today = datetime.now()
+    if request.method == "POST":
+        username = request.form['username']
+        firstname = request.form['firstname']
+        lastname = request.form['lastname']
 
-            # Format the date
-            DATE = today.strftime("%m-%d-%Y")
+        # Get today's date
+        today = datetime.now()
 
-            return redirect(url_for('record', username=username, firstname=firstname,
-                                    lastname=lastname, date=DATE))
+        # Format the date
+        DATE = today.strftime("%m-%d-%Y")
+
+        return redirect(url_for('record', username=username, firstname=firstname,
+                                lastname=lastname, date=DATE))
     return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -74,6 +105,8 @@ def login():
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
+        # user = User.query.filter_by(username=username).first()
+        # if user is not None and user.check_password(password):
         if username == os.getenv("BLENDER_USERNAME") and password == os.getenv("BLENDER_PASSWORD"):
             session['username'] = username
             return redirect(url_for('index'))
@@ -81,12 +114,27 @@ def login():
             return 'Invalid credentials'
     return render_template('login.html')
 
+# @app.route('/register', methods=['GET', 'POST'])
+# def register():
+#     if request.method == 'POST':
+#         username = request.form['username']
+#         password = request.form['password']
+#         firstname = request.form['firstname']
+#         lastname = request.form['lastname']
+#         user = User(username=username, firstname=firstname, lastname=lastname)
+#         user.set_password(password)
+#         db.session.add(user)
+#         db.session.commit()
+#         return redirect(url_for('login'))
+#     return render_template('register.html')
+
 @app.route('/logout')
 def logout():
     session.pop('username', None)
     return redirect(url_for('index'))
 
 @app.route('/record')
+@login_required
 def record():
     # Save the username and date for passing to the recording template
     username = request.args.get('username', '')
