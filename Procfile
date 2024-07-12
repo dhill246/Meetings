@@ -1,1 +1,2 @@
-web: gunicorn -k eventlet -w 1 app:app
+web: python app.py
+worker: celery -A celery_config worker -n worker@%h --loglevel=info
