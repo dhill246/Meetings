@@ -8,6 +8,7 @@ import logging
 from datetime import datetime
 from models import db, User
 from functools import wraps
+from tasks import do_file_conversions
 # from utils.s3Uploads import check_existing_s3_files, upload_to_s3
 
 # Initialize Flask app
@@ -148,7 +149,7 @@ def record():
     list_s3 = check_existing_s3_files()
     list_s3 = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
 
-    if f"{username}/{firstname}{lastname}/{date}" in list_s3:
+    if f"{username}/{firstname}{lastname}/{date}" in list_s3 or f"Summary_{username}_{firstname}{lastname}_{date}.txt" in list_s3:
         return render_template('error.html')
 
     else:
@@ -195,7 +196,14 @@ def handle_audio_chunk(data):
 def handle_audio_end(data):
     name = data['username']
     date = data['date']
+    firstname = data["firstname"]
+    lastname = data["lastname"]
     key_prefix = f"{name}_{date}"
+
+    # Start celery worker
+    do_file_conversions.delay(name, firstname, lastname, date)
+
+    
     app.logger.info(f"Recording ended for {key_prefix}")
 
 
