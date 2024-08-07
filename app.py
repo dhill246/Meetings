@@ -147,9 +147,9 @@ def record():
     lastname = request.args.get('lastname', '')
 
     list_s3 = check_existing_s3_files()
-    # list_s3 = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
+    list_s3_webm = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
 
-    if (f"{username}/{firstname}{lastname}/{date}.webm" in list_s3) or (f"Summary_{username}_{firstname}{lastname}_{date}.txt" in list_s3):
+    if (f"{username}/{firstname}{lastname}/{date}" in list_s3_webm) or (f"Summary_{username}_{firstname}{lastname}_{date}.txt" in list_s3):
         return render_template('error.html')
 
     else:
