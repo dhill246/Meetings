@@ -147,9 +147,9 @@ def record():
     lastname = request.args.get('lastname', '')
 
     list_s3 = check_existing_s3_files()
-    list_s3 = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
+    # list_s3 = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
 
-    if f"{username}/{firstname}{lastname}/{date}" in list_s3 or f"Summary_{username}_{firstname}{lastname}_{date}.txt" in list_s3:
+    if (f"{username}/{firstname}{lastname}/{date}.webm" in list_s3) or (f"Summary_{username}_{firstname}{lastname}_{date}.txt" in list_s3):
         return render_template('error.html')
 
     else:
@@ -166,7 +166,7 @@ def handle_audio_chunk(data):
     file_name = key.split("/")[-1]
     number = int(file_name.split(".")[0])
 
-    if number < 260:
+    if number < 480:
 
         if audio != {}:
             # Create a BytesIO stream for this chunk
@@ -190,7 +190,7 @@ def handle_audio_chunk(data):
             app.logger.info("Audio file was empty.")
 
     else:
-        app.logger.info("An audio file from a meeting longer than 65 minutes is trying to be uploaded. Blocking.")
+        app.logger.info("An audio file from a meeting longer than 2 hours is trying to be uploaded. Blocking.")
 
 @socketio.on('audio_end')
 def handle_audio_end(data):

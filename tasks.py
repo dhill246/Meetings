@@ -8,6 +8,7 @@ import boto3
 from utils.openAI import transcribe_webm, summarize_meeting
 from utils.JoinTranscriptions import combine_text_files, summary_to_word_doc
 from utils.s3Uploads import upload_file_to_s3, download_file, list_files, delete_from_s3
+from utils.Emails import send_email_to_user
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -104,12 +105,12 @@ def do_file_conversions(username, firstname, lastname, date):
             logger.info(f"Successfully summarized: {raw_text_path}.")
 
             summarized_meeting_path = os.path.join("tmp", "summarized_meeting", output_file)
-            summary_to_word_doc(summarized_meeting_path)
+            word_doc_path = summary_to_word_doc(summarized_meeting_path)
             logger.info(f"Successfully turned: {summarized_meeting_path} into a word document.")
 
             # EMAIL WORD DOC TO USER HERE
             # -- TODO
-            # send_email_to_user()
+            send_email_to_user(word_doc_path, user="danielthill23@gmail.com")
 
             # Upload raw text to S3
             upload_path = "Transcription_" + output_file
@@ -118,8 +119,8 @@ def do_file_conversions(username, firstname, lastname, date):
 
             # Upload summarized text to S3
             upload_path = "Summary_" + output_file
-            upload_file_to_s3(summarized_meeting_path, upload_path)
-            logger.info(f"Successfully uploaded: {summarized_meeting_path} to S3 as {upload_path}.")
+            upload_file_to_s3(word_doc_path, upload_path)
+            logger.info(f"Successfully uploaded: {word_doc_path} to S3 as {upload_path}.")
 
             # Safely try deleting folder
             logger.info(f"Attempting to delete tmp/ folder:")

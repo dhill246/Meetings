@@ -20,7 +20,7 @@ def combine_text_files(input_folder, output_file):
     text_files.sort(key=natural_sort_key)
 
     # Create or open the output file in write mode
-    with open(full_file_output, 'w') as outfile:
+    with open(full_file_output, 'w', encoding="utf-8") as outfile:
 
         # Iterate over all the files in the input folder
         for filename in text_files:

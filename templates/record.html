@@ -122,11 +122,11 @@
           hours + ":" + minutes + ":" + seconds;
 
         // Check if 60 minutes have passed
-        if (hours == 1 && minutes >= 0) {
+        if (hours == 1 && minutes >= 55) {
           document.getElementById("timer").style.color = "red";
           document.getElementById("warningMessage").style.display = "block";
 
-          // Automatically stop recording after 65 minutes
+          // Automatically stop recording after 2 hours
           if (minutes == 5) {
             stopRecording();
           }
