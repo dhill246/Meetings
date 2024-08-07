@@ -19,7 +19,7 @@ def transcribe_webm(full_path):
 
     body = transcription.text
 
-    tmp, webm, user, report, date, file = full_path.split("\\")
+    tmp, webm, user, report, date, file = full_path.split("/")
 
     num = file.split(".")[0]
 

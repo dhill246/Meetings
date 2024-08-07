@@ -87,7 +87,7 @@ def markdown_to_docx(input_file_path, output_file_path):
 
 def summary_to_word_doc(input_file):
 
-    base_name = input_file.split("\\")[-1].rsplit(".", 1)[0]
+    base_name = input_file.split("/")[-1].rsplit(".", 1)[0]
     output_folder = os.path.join("tmp", "word_summary")
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)

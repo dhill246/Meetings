@@ -132,7 +132,6 @@ def do_file_conversions(username, firstname, lastname, date):
             delete_from_s3(files)
             logger.info(f"Successfully deleted audio files from bucket.")
 
-
     except Exception as e:
         logger.error(f"Error during file conversion process: {e}")
 
