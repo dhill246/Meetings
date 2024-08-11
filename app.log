@@ -1,0 +1,12 @@
+2024-08-10 17:48:07,151 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2024-08-10 17:48:07,151 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2024-08-10 17:48:12,334 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:12] "GET / HTTP/1.1" 200 -
+2024-08-10 17:48:12,363 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:12] "[36mGET /static/index.css HTTP/1.1[0m" 304 -
+2024-08-10 17:48:16,441 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:16] "[32mPOST / HTTP/1.1[0m" 302 -
+2024-08-10 17:48:16,953 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:16] "GET /record?username=Dave+Dorste&firstname=Daniel&lastname=Hill&date=08-10-2024 HTTP/1.1" 200 -
+2024-08-10 17:48:16,968 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:16] "[36mGET /static/record.css HTTP/1.1[0m" 304 -
+2024-08-10 17:48:16,972 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:16] "GET /socket.io/?EIO=4&transport=polling&t=P4-w4nA HTTP/1.1" 200 -
+2024-08-10 17:48:16,976 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:16] "POST /socket.io/?EIO=4&transport=polling&t=P4-w4nE&sid=lGz5JWNVM9POt6leAAAA HTTP/1.1" 200 -
+2024-08-10 17:48:16,977 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:16] "GET /socket.io/?EIO=4&transport=polling&t=P4-w4nF&sid=lGz5JWNVM9POt6leAAAA HTTP/1.1" 200 -
+2024-08-10 17:48:39,830 - werkzeug - INFO - 127.0.0.1 - - [10/Aug/2024 17:48:39] "GET /socket.io/?EIO=4&transport=websocket&sid=lGz5JWNVM9POt6leAAAA HTTP/1.1" 200 -

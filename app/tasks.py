@@ -5,10 +5,10 @@ import logging
 import time
 from celery.signals import worker_shutdown
 import boto3
-from utils.openAI import transcribe_webm, summarize_meeting
-from utils.JoinTranscriptions import combine_text_files, summary_to_word_doc
-from utils.s3Uploads import upload_file_to_s3, download_file, list_files, delete_from_s3
-from utils.Emails import send_email_to_user
+from app.utils.openAI import transcribe_webm, summarize_meeting
+from app.utils.JoinTranscriptions import combine_text_files, summary_to_word_doc
+from app.utils.s3_utils import upload_file_to_s3, download_file, list_files, delete_from_s3
+from app.utils.Emails import send_email_to_user
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +18,9 @@ app = Celery('tasks', broker=os.getenv("CLOUDAMQP_URL"))
 
 app.conf.update(broker_connection_retry_on_startup=True,
                 broker_pool_limit=1,
-                worker_concurrency=1, 
+                worker_concurrency=1,
+                timezone="UTC",
+                enable_utc=True, 
                 task_serializer="json",
                 prefetch_multiplier=1,
                 worker_cancel_long_running_tasks_on_connection_loss=True)

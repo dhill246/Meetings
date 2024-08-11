@@ -19,7 +19,8 @@ def transcribe_webm(full_path):
 
     body = transcription.text
 
-    tmp, webm, user, report, date, file = full_path.split("/")
+    path_parts = os.path.normpath(full_path).split(os.sep)
+    tmp, webm, user, report, date, file = path_parts
 
     num = file.split(".")[0]
 

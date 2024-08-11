@@ -55,6 +55,9 @@
       let segmentInterval;
       let pauseTimeout;
       const socket = io();
+      socket.on("connect", () => {
+        console.log("Connected to server via Socket.io");
+      });
 
       let startTime,
         updatedTime,
@@ -160,8 +163,10 @@
 
             mediaRecorder.ondataavailable = function (event) {
               if (event.data.size > 0) {
+                console.log("Data available from recording", event.data);
                 const fileKey = `${username}/${firstname}${lastname}/${date}/${segmentCounter}.webm`;
                 segmentCounter++;
+                console.log("Emitting audio chunk:", fileKey);
                 socket.emit("audio_chunk", {
                   audioData: event.data,
                   key: fileKey,
@@ -198,6 +203,7 @@
           mediaRecorder.onstop = () => {
             if (mediaRecorder && mediaRecorder.state !== "inactive") {
               const fileKey = `${username}_${date}/${segmentCounter}.webm`;
+              console.log("Emitting audio chunk:", fileKey);
               socket.emit("audio_chunk", {
                 audioData: mediaRecorder,
                 key: fileKey,
@@ -208,6 +214,7 @@
 
             // Send the audio_end event after a short delay to ensure all chunks are processed
             setTimeout(() => {
+              console.log("Emitting audio end.");
               socket.emit("audio_end", {
                 username: username,
                 date: date,

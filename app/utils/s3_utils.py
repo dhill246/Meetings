@@ -1,5 +1,6 @@
 import os
 import boto3
+import traceback
 
 bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
 
@@ -43,7 +44,6 @@ def check_existing_s3_files():
     # Check if 'Contents' key is in the response (it won't be if the bucket is empty)
     if 'Contents' in response:
         for item in response['Contents']:
-            print(item['Key'], item['LastModified'], item['Size'])
             list_of_files.append(item["Key"])
 
         return list_of_files
@@ -53,7 +53,11 @@ def check_existing_s3_files():
 
 def upload_audio_to_s3(audio_stream, key, bucket_name=bucket_name):
     """Upload audio to S3."""
-    s3_client.upload_fileobj(audio_stream, bucket_name, key)
+    try:
+        s3_client.upload_fileobj(audio_stream, bucket_name, key)
+        print(f"File uploaded to {bucket_name}/{key}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 
 def upload_file_to_s3(file_path, object_name, bucket_name=bucket_name):
@@ -66,6 +70,11 @@ def upload_file_to_s3(file_path, object_name, bucket_name=bucket_name):
         print(f"The file {file_path} was not found")
     except Exception as e:
         print(f"An error occurred: {e}")
+        print(traceback.format_exc())  # Log the full traceback
+
+
+# def upload_to_s3(audio_stream, key, bucket_name=bucket_name):
+#     s3_client.upload_fileobj(audio_stream, bucket_name, key)
 
 
 def delete_from_s3(my_list=[]):
