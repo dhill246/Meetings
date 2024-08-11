@@ -25,7 +25,7 @@ def create_app():
     @app.before_request
     def before_request():
         if "herokuapp" in request.host:
-            return redirect("https://morphdatastrategies.com", code=301)
+            return redirect("https://www.morphdatastrategies.com", code=301)
 
     # Set up basic logging output for the app
     # logging.basicConfig(level=logging.INFO)
