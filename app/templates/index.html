@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>Blender Products Meeting Recorder</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Morph Data Strategies</title>
     <link
       rel="stylesheet"
       type="text/css"
@@ -9,36 +11,25 @@
     />
   </head>
   <body>
-    <form method="POST">
-      <h1>Select your name and enter the name of your direct report.</h1>
-      <p>Your Name:</p>
-      <select id="username" name="username" required>
-        <option value="Dave Dorste">Dave Dorste</option>
-        <option value="Travis Starns">Travis Starns</option>
-        <option value="Mark Pavol">Mark Pavol</option>
-        <option value="Paul Filby">Paul Filby</option>
-        <option value="Steve Hill">Steve Hill</option>
-        <option value="Pat Tierney">Pat Tierney</option>
-        <option value="Alex Beeck">Alex Beeck</option>
-        <option value="Ignacio Carrion">Ignacio Carrion</option>
-      </select>
-      <label for="firstname">Direct Report First Name:</label>
-      <input
-        type="text"
-        id="firstname"
-        name="firstname"
-        placeholder="Direct Report First Name"
-        required
-      />
-      <label for="lastname">Direct Report Last Name:</label>
-      <input
-        type="text"
-        id="lastname"
-        name="lastname"
-        placeholder="Direct Report Last Name"
-        required
-      />
-      <button type="submit">Submit</button>
-    </form>
+    <div class="header">
+      <h1>Morph Data Strategies</h1>
+      <a href="{{ url_for('auth.login') }}">
+        <button class="login-button">Login</button>
+      </a>
+    </div>
+    <div class="content">
+      <h2>Transform Your Data into Actionable Insights</h2>
+      <p>
+        We help businesses leverage data to drive growth and innovation. Sign up
+        to stay updated on our latest offerings!
+      </p>
+      <div class="email-signup">
+        <input type="email" placeholder="Enter your email" required />
+        <button type="submit">Sign Up</button>
+      </div>
+    </div>
+    <div class="footer">
+      <p>&copy; 2024 Morph Data Strategies. All rights reserved.</p>
+    </div>
   </body>
 </html>

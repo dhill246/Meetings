@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Organization Auth</title>
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="{{ url_for('static', filename='login.css') }}"
+    />
+  </head>
+  <body>
+    <div class="banner">
+      <p>
+        One time organization authentication: Please enter the username and
+        password given to you by your administrator.
+      </p>
+    </div>
+    <div class="form-container">
+      <form action="/org" method="post">
+        <div>
+          <label for="org_name">Organization Username:</label>
+          <input type="text" id="org_name" name="org_name" required />
+        </div>
+        <div>
+          <label for="password">Organization Password:</label>
+          <input type="password" id="password" name="password" required />
+        </div>
+        <div>
+          <input type="submit" value="Proceed to Sign Up" />
+        </div>
+      </form>
+      <br />
+      <div class="message">
+        <p>Already have an account? <a href="/login">Log in</a></p>
+      </div>
+    </div>
+  </body>
+</html>

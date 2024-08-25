@@ -1,9 +1,10 @@
 from flask import Flask, redirect, request
 from flask_socketio import SocketIO
 from flask_migrate import Migrate
+from flask_login import LoginManager, login_user, current_user, logout_user, login_required
 import os
 import logging
-from .models import db
+from .models import db, User
 from .utils.logger_setup import configure_logging
 from .main import main as main_blueprint
 from .auth import auth as auth_blueprint
@@ -17,6 +18,14 @@ def create_app():
     
     # Initialize Flask app
     app = Flask(__name__)
+
+    # Initialize login manager
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
 
     # Load configuration from Config class
     app.config.from_object(Config)
@@ -33,12 +42,12 @@ def create_app():
     # Initialize the database connection
     db.init_app(app)
 
+    # Enable migration
+    migrate = Migrate(app, db)
+
     # Initialize socket for listening
     # socketio = SocketIO(app)
     socketio.init_app(app)
-
-    # Enable migration
-    migrate = Migrate(app, db)
 
     # Register blueprints
     app.register_blueprint(main_blueprint)

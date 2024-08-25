@@ -1,0 +1,42 @@
+.dashboard-container {
+  width: 80%;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.meeting-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.meeting-table th,
+.meeting-table td {
+  border: 1px solid #ccc;
+  padding: 8px;
+  text-align: left;
+}
+
+.meeting-table th {
+  background-color: #f4f4f4;
+}
+
+.back-button {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 10px 15px;
+  background-color: #007bff;
+  color: white;
+  text-decoration: none;
+  border-radius: 5px;
+}
+
+.meeting-summary {
+  margin-left: 20px; /* Indent the entire summary */
+}
+.meeting-summary ul {
+  list-style-type: disc; /* Use a disc (bullet) for unordered lists */
+  margin-left: 20px; /* Further indent the list items */
+}
+.meeting-summary li {
+  margin-bottom: 10px; /* Add some space between list items */
+}

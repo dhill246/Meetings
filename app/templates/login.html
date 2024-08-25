@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login</title>
+    <title>User Login</title>
     <link
       rel="stylesheet"
       type="text/css"
@@ -11,11 +11,19 @@
     />
   </head>
   <body>
+    <div class="banner">
+      <!-- <p>
+        Current Blender users: This is a new login page. Click "Sign up" if you
+        don't have a PERSONAL account yet. First, enter your organization's
+        username and password, then create your personal account. Use your
+        personal login to sign in on this page in the future.
+      </p> -->
+    </div>
     <div class="form-container">
       <form action="/login" method="post">
         <div>
-          <label for="username">Username:</label>
-          <input type="text" id="username" name="username" required />
+          <label for="email">Email:</label>
+          <input type="email" id="email" name="email" required />
         </div>
         <div>
           <label for="password">Password:</label>
@@ -25,12 +33,10 @@
           <input type="submit" value="Login" />
         </div>
       </form>
-      <!-- <br />
-      <form action="/register" method="get">
-        <div>
-          <input type="submit" value="Register" />
-        </div>
-      </form> -->
+      <br />
+      <div class="message">
+        <p>Don't have an account yet? <a href="/org">Sign up</a></p>
+      </div>
     </div>
   </body>
 </html>

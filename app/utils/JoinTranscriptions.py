@@ -7,8 +7,8 @@ from docx.shared import Pt
 def natural_sort_key(s):
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
-def combine_text_files(input_folder, output_file):
-    output_path = os.path.join("tmp", "joined_text")
+def combine_text_files(input_folder, output_file, username):
+    output_path = os.path.join(f"tmp_{username}", "joined_text")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     
@@ -85,10 +85,10 @@ def markdown_to_docx(input_file_path, output_file_path):
     text = read_text_file(input_file_path)
     text_to_doc(text, output_file_path)
 
-def summary_to_word_doc(input_file):
+def summary_to_word_doc(input_file, username):
 
     base_name = os.path.splitext(os.path.basename(input_file))[0]
-    output_folder = os.path.join("tmp", "word_summary")
+    output_folder = os.path.join(f"tmp_{username}", "word_summary")
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
 

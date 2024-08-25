@@ -11,6 +11,13 @@ s3_client = boto3.client(
     aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
 )
 
+def read_text_file(file_key):
+    response = s3_client.get_object(Bucket=bucket_name, Key=file_key)
+    file_content = response["Body"].read().decode("utf-8")
+
+    return file_content
+
+
 def list_files(bucket_name, prefix):
     """List files in an S3 bucket."""
     # List objects within the bucket
@@ -28,7 +35,7 @@ def list_files(bucket_name, prefix):
 def download_file(bucket_name, item, user, report, date, file):
     """Download a file from S3."""
     # Local path where you want to save the downloaded file
-    folder_file_path = os.path.join("tmp", "downloaded_webm_file", user, report, date)
+    folder_file_path = os.path.join(f"tmp_{user}", "downloaded_webm_file", user, report, date)
     local_file_path = os.path.join(folder_file_path, file)
 
     if not os.path.exists(folder_file_path):

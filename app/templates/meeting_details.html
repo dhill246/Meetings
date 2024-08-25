@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting Summary</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='dashboard.css') }}"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <h1>
+        Meeting with {{ report.first_name }} {{ report.last_name }} on {{
+        meeting.date.strftime('%m-%d-%Y') }}
+      </h1>
+      <hr />
+      <div class="meeting-summary">{{ meeting_summary|safe }}</div>
+      <br />
+      <a href="{{ url_for('main.view_meetings', report_id=report.id) }}"
+        >Back to Meetings</a
+      >
+    </div>
+  </body>
+</html>

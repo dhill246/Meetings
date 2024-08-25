@@ -67,6 +67,8 @@
         paused = 0,
         running = 0;
 
+      const user_id = "{{ user_id }}";
+      const report_id = "{{ report_id }}";
       const username = "{{ username }}";
       const firstname = "{{ firstname }}";
       const lastname = "{{ lastname }}";
@@ -216,6 +218,8 @@
             setTimeout(() => {
               console.log("Emitting audio end.");
               socket.emit("audio_end", {
+                user_id: user_id,
+                report_id: report_id,
                 username: username,
                 date: date,
                 firstname: firstname,

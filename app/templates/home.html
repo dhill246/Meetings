@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Morph</title>
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="{{ url_for('static', filename='home.css') }}"
+    />
+  </head>
+  <body>
+    <div class="logout-container">
+      <form method="POST" action="{{ url_for('auth.logout') }}">
+        <button type="submit" class="logout-button">Logout</button>
+      </form>
+    </div>
+    <h1>Welcome, {{ current_user.first_name }}.</h1>
+    {% if direct_reports %}
+    <form method="POST">
+      <h2>Your direct reports:</h2>
+      {% for report_relationship in direct_reports %}
+      <div class="report-container">
+        <span class="report-name">
+          {{ report_relationship.report.first_name }} {{
+          report_relationship.report.last_name }}
+        </span>
+        <button
+          type="submit"
+          name="report_id"
+          value="{{ report_relationship.report.id }}"
+          class="meet-button"
+        >
+          Meet Now
+        </button>
+        <a
+          href="{{ url_for('main.view_meetings', report_id=report_relationship.report.id) }}"
+          class="view-button"
+        >
+          View Past Meetings
+        </a>
+      </div>
+      {% endfor %}
+    </form>
+    {% else %}
+    <p>No reports yet. Add them below:</p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('main.add_report') }}">
+      <h3>Add a new direct report:</h3>
+      <label for="firstname">First Name:</label>
+      <input type="text" id="firstname" name="firstname" required />
+      <label for="lastname">Last Name:</label>
+      <input type="text" id="lastname" name="lastname" required />
+      <label for="email">Report Email:</label>
+      <input type="email" id="email" name="email" required />
+      <button type="submit" class="add-report-button">Add Report</button>
+    </form>
+  </body>
+</html>

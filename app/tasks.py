@@ -41,34 +41,30 @@ def write_out_some_text(text=""):
     with open("HeresaFile.txt", "w") as f:
         f.write(text)
 
-def delete_folder(folder_path="tmp/"):
+def delete_folder(folder_path):
     """Delete a folder and its contents after ensuring all files are closed."""
     try:
             # Ensure the directory exists
         if os.path.exists(folder_path):
-            logger.info("Found tmp/ path. Trying to remove contents:")
             # Remove the directory and its contents
             shutil.rmtree(folder_path)
-            logger.info(f"Folder {folder_path} successfully deleted")
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
     
-def safe_delete_folder(folder_path="tmp/", retries=3, delay=5):
+def safe_delete_folder(folder_path, retries=3, delay=5):
     """Attempt to safely delete a folder with retries and delay."""
     for attempt in range(retries):
-        logger.info(f"Trying to delete. Attempt number {attempt}")
         try:
             delete_folder(folder_path)
             break
         except Exception as e:
-            print(f"Attempt {attempt + 1} failed: {e}")
             time.sleep(delay)
     else:
         logger.error(f"Failed to delete folder {folder_path} after {retries} attempts")
 
 @app.task
-def do_file_conversions(username, firstname, lastname, date):
+def do_file_conversions(username, firstname, lastname, date, emails):
     report = f"{firstname}{lastname}"
     filepath_to_convert = os.path.join(username, report, date)
     filepath_to_convert = filepath_to_convert.replace("\\", "/")
@@ -89,30 +85,31 @@ def do_file_conversions(username, firstname, lastname, date):
                 logger.info(f"Downloaded file: {item}")
 
                 # Process the file (convert to .wav)
-                temp_download_folder = os.path.join("tmp", "downloaded_webm_file")
-                temp_transcribed_folder = os.path.join("tmp", "transcribed_chunks")
+                temp_download_folder = os.path.join(f"tmp_{username}", "downloaded_webm_file")
+                temp_transcribed_folder = os.path.join(f"tmp_{username}", "transcribed_chunks")
                 
                 full_webm_path = os.path.join(temp_download_folder, user, report, date, file)
-                transcribe_webm(full_webm_path)
+                transcribe_webm(full_webm_path, username)
                 logger.info(f"Successfully transcribed file: {item} into text.")
 
 
-            input_folder = os.path.join("tmp", "transcribed_chunks", username, report, date)
+            input_folder = os.path.join(f"tmp_{username}", "transcribed_chunks", username, report, date)
             output_file = f"{username}_{report}_{date}.txt"
-            combine_text_files(input_folder, output_file)
+            combine_text_files(input_folder, output_file, username)
             logger.info(f"Successfully combined all text file in {input_folder} into {output_file}")
 
-            raw_text_path = os.path.join("tmp", "joined_text", output_file)
-            summarize_meeting(raw_text_path, output_file)
+            raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
+            summarize_meeting(raw_text_path, output_file, username)
             logger.info(f"Successfully summarized: {raw_text_path}.")
 
-            summarized_meeting_path = os.path.join("tmp", "summarized_meeting", output_file)
-            word_doc_path = summary_to_word_doc(summarized_meeting_path)
+            summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)
+            word_doc_path = summary_to_word_doc(summarized_meeting_path, username)
             logger.info(f"Successfully turned: {summarized_meeting_path} into a word document.")
 
-            # EMAIL WORD DOC TO USER HERE
-            # -- TODO
-            send_email_to_user(word_doc_path, user="danielthill23@gmail.com")
+            print("Sending email")
+
+            for email in emails:
+                send_email_to_user(word_doc_path, user, report, date, email)
 
             # Upload raw text to S3
             upload_path = "Transcription_" + output_file
@@ -121,13 +118,13 @@ def do_file_conversions(username, firstname, lastname, date):
 
             # Upload summarized text to S3
             upload_path = "Summary_" + output_file
-            upload_file_to_s3(word_doc_path, upload_path)
-            logger.info(f"Successfully uploaded: {word_doc_path} to S3 as {upload_path}.")
+            upload_file_to_s3(summarized_meeting_path, upload_path)
+            logger.info(f"Successfully uploaded: {summarized_meeting_path} to S3 as {upload_path}.")
 
             # Safely try deleting folder
-            logger.info(f"Attempting to delete tmp/ folder:")
-            safe_delete_folder()
-            logger.info(f"Successfully deleted tmp/ folder.")
+            logger.info(f"Attempting to delete tmp_{username} folder:")
+            safe_delete_folder(f"tmp_{username}")
+            logger.info(f"Successfully deleted tmp_{username} folder.")
 
             # Destroy audio files in S3 bucket
             logger.info(f"Attempting to delete audio files from bucket:")
