@@ -9,6 +9,8 @@ from app.utils.openAI import transcribe_webm, summarize_meeting
 from app.utils.JoinTranscriptions import combine_text_files, summary_to_word_doc
 from app.utils.s3_utils import upload_file_to_s3, download_file, list_files, delete_from_s3
 from app.utils.Emails import send_email_to_user
+from dotenv import load_dotenv
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -34,13 +36,6 @@ s3_client = boto3.client(
     aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
 )
 
-@app.task
-def write_out_some_text(text=""):
-    logger.info(f"WRITING TEXT NOW")
-
-    with open("HeresaFile.txt", "w") as f:
-        f.write(text)
-
 def delete_folder(folder_path):
     """Delete a folder and its contents after ensuring all files are closed."""
     try:
@@ -64,11 +59,22 @@ def safe_delete_folder(folder_path, retries=3, delay=5):
         logger.error(f"Failed to delete folder {folder_path} after {retries} attempts")
 
 @app.task
+def dummy_task():
+    # Write a function that writes out a text file
+    with open("dummy_task.txt", "w") as f:
+        f.write("This is a dummy task.")
+    logger.info("Dummy task executed.")
+
+@app.task
 def do_file_conversions(username, firstname, lastname, date, emails):
+
+    logger.info(f"AWS_ACCESS_KEY_ID: {os.getenv('BUCKETEER_AWS_ACCESS_KEY_ID')}")
+
     report = f"{firstname}{lastname}"
     filepath_to_convert = os.path.join(username, report, date)
-    filepath_to_convert = filepath_to_convert.replace("\\", "/")
-    
+    filepath_to_convert = filepath_to_convert.replace("\\", "_")
+    filepath_to_convert = filepath_to_convert.replace("/", "_")
+
     logger.info(f"Starting file process for path: {filepath_to_convert}")
     
     try:
@@ -78,7 +84,7 @@ def do_file_conversions(username, firstname, lastname, date, emails):
         if len(files) != 0:
 
             for item in files:
-                user, report, date, file = item.split("/")
+                user, report, date, file = item.split("_")
 
                 # Download the file
                 download_file(BUCKET_NAME, item, user, report, date, file)

@@ -1,6 +1,11 @@
 import os
 import boto3
 import traceback
+import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 bucket_name = os.getenv('BUCKETEER_BUCKET_NAME')
 

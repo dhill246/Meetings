@@ -64,13 +64,13 @@ def summarize_meeting(input_file, output_file, username):
         content = file.read()
 
     system_prompt = """Please analyze the following 1:1 meeting transcript and provide a detailed summary. The summary should include the following:
-Tone of the Meeting: Describe the overall mood and atmosphere during the meeting. Was it collaborative, tense, productive, casual, etc.?
-Key Takeaways: Identify the most important points discussed during the meeting. What were the main themes or topics covered?
-Action Items: List all the action items that were agreed upon, including who is responsible for each and any deadlines mentioned.
-Decisions Made: Highlight any decisions or agreements that were reached during the meeting. Include the rationale behind these decisions if discussed.
-Concerns or Challenges: Note any concerns, challenges, or issues that were raised during the meeting, along with any proposed solutions or next steps.
-Opportunities: Identify any potential opportunities that were discussed or hinted at during the meeting, whether for improvement, growth, or new initiatives.
-Additional Notes: Include any other relevant information that could help in understanding the full context and outcomes of the meeting."""
+                        Tone of the Meeting: Describe the overall mood and atmosphere during the meeting. Was it collaborative, tense, productive, casual, etc.?
+                        Key Takeaways: Identify the most important points discussed during the meeting. What were the main themes or topics covered?
+                        Action Items: List all the action items that were agreed upon, including who is responsible for each and any deadlines mentioned.
+                        Decisions Made: Highlight any decisions or agreements that were reached during the meeting. Include the rationale behind these decisions if discussed.
+                        Concerns or Challenges: Note any concerns, challenges, or issues that were raised during the meeting, along with any proposed solutions or next steps.
+                        Opportunities: Identify any potential opportunities that were discussed or hinted at during the meeting, whether for improvement, growth, or new initiatives.
+                        Additional Notes: Include any other relevant information that could help in understanding the full context and outcomes of the meeting."""
 
     def generate_meeting_notes(temperature, system_prompt, model):
         response = client.chat.completions.create(

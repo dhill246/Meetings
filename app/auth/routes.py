@@ -1,118 +1,154 @@
-from flask import render_template, redirect, url_for, request, session
-from flask_login import login_user
+from flask import render_template, jsonify, redirect, url_for, request
+from flask_login import login_user, logout_user
 from ..models import Organization, User, db
 from werkzeug.security import generate_password_hash
 import logging
 from . import auth
 import os
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, verify_jwt_in_request
 
-@auth.route('/org', methods=['GET', 'POST'])
+TRUSTED_DOMAIN = os.getenv("TRUSTED_DOMAIN")
+
+@auth.route('/api/org', methods=['POST'])
 def org():
-    if request.method == 'POST':
-        org_name = request.form['org_name']
-        password = request.form['password']
 
-        logging.info(f"Received attempted login from {org_name}. Looking them up.")
-        organization = Organization.query.filter_by(name=org_name).first()
+    data = request.json
+    org_name = data.get('org_name')
+    password = data.get('password')
+    logging.info(f"Email received: {org_name}")
 
-        if organization and organization.check_password(password):
-            logging.info("Found them.")
-            session["org_id"] = organization.id
-            logging.info(f"\nUser from {org_name} logged in.")
+    logging.info(f"Received attempted login from {org_name}. Looking them up.")
+    organization = Organization.query.filter_by(name=org_name).first()
 
-            return redirect(url_for('auth.signup'))
-        
-        else:
-            return 'Invalid credentials'
+    if organization and organization.check_password(password):
+        logging.info("Found them.")
+        access_token = create_access_token(identity={"org_id": organization.id,
+                                                     "user_id": None,
+                                                     "role": "default"})
+        logging.info(f"\nUser from {org_name} logged in.")
+
+        # return redirect(url_for('auth.signup'))
+        return jsonify({
+            "message": "Organization logged in",
+            "access_token": access_token,
+            "next_step": "signup"
+        }), 200
+
     
-    return render_template('org.html')
+    else:
+        return jsonify({"error": "Invalid credentials"}), 401
 
-@auth.route("/login", methods=["GET", "POST"])
+
+@auth.route("/api/login", methods=["POST"])
 def login():
+    """"
+    POST request:
 
-    if request.method == "POST":
-        email = request.form["email"]
-        password = request.form["password"]
+        - Receives: {
+                        "email": "danielthill23@example.com",
+                        "password": "examplepassword"
+                    }
 
-        user = User.query.filter_by(email=email).first()
+        - Returns: {
+                        "access_token": "token_example",
+                        "message": "User logged in",
+                        "next_step": "home"
+                    }
+    """
 
-        # If user exists, and passwords match
-        if user and user.check_password(password):
-            # Put user into the session
-            login_user(user)
-            print("Logged user in, redirecting to main")
-            
-            return redirect(url_for("main.home"))
-        
-        else:
-            return "Incorrect password"
+    data = request.json
+    email = data.get("email")
+    password = data.get("password")
 
-    return render_template("login.html")
+    user = User.query.filter_by(email=email).first()
 
-@auth.route("/signup", methods=["GET", "POST"])
+    # If user exists, and passwords match
+    if user and user.check_password(password):
+        # Put user into the session
+        access_token = create_access_token(identity={"org_id": user.organization_id,
+                                                "user_id": user.id,
+                                                "role": user.role})
+        return jsonify({
+            "message": "User logged in", 
+            "access_token": access_token,
+            "next_step": "home"
+        }), 200
+    
+    else:
+        return jsonify({"error": "Incorrect email or password"}), 401
+
+
+@auth.route("/api/signup", methods=["POST"])
+@jwt_required()
 def signup():
-    organization_id = session.get("org_id")
-    print(f"Found org id: {organization_id}")
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
 
-    if not organization_id:
-        return redirect(url_for("auth.org"))
+    logging.info(f"Found org id: {org_id}")
 
-    if request.method == "POST":
-        print(f"Method post hit")
-        first_name = request.form["first_name"]
-        last_name = request.form["last_name"]
-        email = request.form["email"]
-        password = request.form["password"]
-        confirm_password = request.form["confirm_password"]
+    if not org_id:
+        # return redirect(url_for("auth.org"))
+        return jsonify({"error": "No organization found in session", "next_step": "org"}), 400
 
-        # Make sure all fields have been submitted
-        if not email or not password or not confirm_password or not first_name or not last_name:
-            return "Please make sure all fields are filled out."
-        
-        # Make sure passwords match
-        elif password != confirm_password:
-            return "Passwords do not match. Please try again."
-        else:
-            # Query user table by email to find out if the user already
-            # has an account
-            print(f"Checking if user exists.")
+    data = request.json
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
+    email = data.get("email")
+    password = data.get("password")
+    confirm_password = data.get("confirm_password")
 
-            existing_user = User.query.filter_by(email=email).first()
+    # Make sure all fields have been submitted
+    if not email or not password or not confirm_password or not first_name or not last_name:
+        return jsonify({"error": "Please make sure all fields are filled out."}), 400
+    
+    # Make sure passwords match
+    if password != confirm_password:
+        return jsonify({"error": "Passwords do not match. Please try again."}), 400
+    # Query user table by email to find out if the user already
+    # has an account
 
-            # Create new user if they don't exist
-            if existing_user is None:
-                print(f"User does not exist yet.")
+    existing_user = User.query.filter_by(email=email).first()
 
-                # Create a new user and add them to the database
+    # Create new user if they don't exist
+    if existing_user:
+        logging.info(f"User with email {email} already exists.")
 
-                if organization_id:
-                    print("Creating new user")
-                    new_user = User(email=email, 
-                                    password_hash=generate_password_hash(password),
-                                    first_name=first_name,
-                                    last_name=last_name,
-                                    organization_id=organization_id)
-                    
-                    print("Committing to the database")
-                    db.session.add(new_user)
-                    db.session.commit()
+        return jsonify({"error": "User exists. Please log in."}), 409
 
-                    print("User committed.")
+    
+    logging.info(f"Creating new user with email {email}.")
 
-                    session["_user_id"] = new_user.id
+    # Create a new user and add them to the database
+    new_user = User(email=email, 
+                    password_hash=generate_password_hash(password),
+                    first_name=first_name,
+                    last_name=last_name,
+                    organization_id=org_id,
+                    role="default")
+    
+    db.session.add(new_user)
+    db.session.commit()
 
-                    print("Redirecting home")
-                    return redirect(url_for("main.home"))
-                
-                else:
-                    return redirect(url_for("auth.org"))
-            
-            else:
-                return "User exists. Please log in."
-            
-    return render_template("signup.html")
+    logging.info(f"New user created with email {email} and id {new_user.id}.")
 
-@auth.route('/logout', methods=["POST"])
+    access_token = create_access_token(identity={"org_id": new_user.organization_id,
+                                                "user_id": new_user.id,
+                                                "role": new_user.role})
+    return jsonify({
+        "message": "User signed up",
+        "access_token": access_token,
+        "next_step": "home"
+    }), 201
+    
+
+@auth.route('/api/logout', methods=["POST"])
 def logout():
-    session.pop('_user_id', None)
-    return redirect(url_for('auth.login'))
+    return jsonify({"message": "User logged out", "next_step": "login"}), 200
+
+
+@auth.route('/api/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    current_user = get_jwt_identity()
+    new_access_token = create_access_token(identity=current_user)
+    return jsonify(access_token=new_access_token)
