@@ -94,21 +94,25 @@ def register_events(socketio):
             print(data)
             print("\n")
 
-            user_id = data["user_id"]
-            report_id = data["report_id"]
-            name = data['username']
+            host_id = data["host_id"]
+            attendees = data["attendees"]
             date = data['date']
-            firstname = data["firstname"]
-            lastname = data["lastname"]
-            key_prefix = f"{name}_{date}"
-
-            event_key = f"{data['user_id']}_{data['report_id']}_{data['date']}"
+            meeting_name = data["meeting_name"]
 
             # Query the database for emails associated with the given user_id and report_id
-            user = User.query.filter_by(id=user_id).first()
-            report = User.query.filter_by(id=report_id).first()
+            host = User.query.filter_by(id=host_id).first()
 
             emails = []
+            organization_id = None
+
+            
+
+            attendees = [{"first_name": "Travis", 
+                          "last_name": "Starns", 
+                          "email": "Travis.Starns@blenderproducts.com"}, 
+                          {"first_name": "Dave", 
+                           "last_name": "Dorste", 
+                           "email": "Dave.Dorste@blenderproducts.com"}]
 
             if user:
                 emails.append(user.email)  # Assuming the Users model has an 'email' field
@@ -123,6 +127,4 @@ def register_events(socketio):
             except Exception as e:
                 logger.error(f"Failed to start Celery task do_file_conversions: {e}")
 
-            create_meeting(user_id, report_id, user.organization_id, f"Summary_{name}_{firstname}{lastname}_{date}.txt")
-
-            print(f"Recording ended for {key_prefix}")
+            print(f"Recording ended for {meeting_name} with attendees: {attendees}")

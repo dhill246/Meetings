@@ -5,7 +5,7 @@ import logging
 import time
 from celery.signals import worker_shutdown
 import boto3
-from app.utils.openAI import transcribe_webm, summarize_meeting
+from app.utils.openAI import transcribe_webm, summarize_meeting_improved
 from app.utils.JoinTranscriptions import combine_text_files, summary_to_word_doc
 from app.utils.s3_utils import upload_file_to_s3, download_file, list_files, delete_from_s3
 from app.utils.Emails import send_email_to_user
@@ -68,6 +68,9 @@ def dummy_task():
 @app.task
 def do_file_conversions(username, firstname, lastname, date, emails):
 
+    attendees = [{"first_name": "Travis", "last_name": "Starns", "email": "Travis.Starns@blenderproducts.com"}, 
+                {"first_name": "Dave", "last_name": "Dorste", "email": "Dave.Dorste@blenderproducts.com"}]
+
     logger.info(f"AWS_ACCESS_KEY_ID: {os.getenv('BUCKETEER_AWS_ACCESS_KEY_ID')}")
 
     report = f"{firstname}{lastname}"
@@ -105,7 +108,7 @@ def do_file_conversions(username, firstname, lastname, date, emails):
             logger.info(f"Successfully combined all text file in {input_folder} into {output_file}")
 
             raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
-            summarize_meeting(raw_text_path, output_file, username)
+            summarize_meeting_improved(raw_text_path, output_file, username, attendees=attendees)
             logger.info(f"Successfully summarized: {raw_text_path}.")
 
             summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)
