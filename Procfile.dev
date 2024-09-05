@@ -1,2 +1,2 @@
-web: flask run
+web: python run.py
 worker: celery -A app.tasks worker -P eventlet --loglevel=INFO

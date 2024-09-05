@@ -25,6 +25,7 @@ class User(db.Model, UserMixin):
     last_name = db.Column(db.String(60), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256))
+    role = db.Column(db.String(60))
 
     # Foreign key
     organization_id = db.Column(db.Integer, db.ForeignKey("organization.id", name="fk_user_organization_id"), nullable=False)
