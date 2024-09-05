@@ -1,5 +1,4 @@
 from flask import render_template, jsonify, redirect, url_for, request, session
-from markupsafe import Markup
 from ..models import User, Reports, Meeting, db, Organization
 from . import main
 from ..utils.s3_utils import check_existing_s3_files, read_text_file
@@ -7,7 +6,6 @@ from ..utils.mongo import get_oneonone_meetings
 from datetime import datetime
 from flask_socketio import emit
 from functools import wraps
-import markdown
 from botocore.exceptions import ClientError
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 
