@@ -1,6 +1,6 @@
 from flask_socketio import disconnect
 from flask import current_app, request
-from app.models import User, Meeting
+from app.models import User, Organization
 from .utils.s3_utils import upload_audio_to_s3
 from .utils.Meetings import create_meeting
 from io import BytesIO
@@ -85,7 +85,7 @@ def register_events(socketio):
             print("An audio file from a meeting longer than 2 hours is trying to be uploaded. Blocking.")
 
 
-    @socketio.on('audio_end')
+    @socketio.on('audio_end_oneonone')
     def handle_audio_end(data):
         # with audio_end_lock:
         if True:
@@ -94,25 +94,37 @@ def register_events(socketio):
             print(data)
             print("\n")
 
-            host_id = data["host_id"]
-            attendees = data["attendees"]
+            user_id = data["user_id"]
+            report_id = data["report_id"]
             date = data['date']
-            meeting_name = data["meeting_name"]
+            duration = data["duration"]
+
 
             # Query the database for emails associated with the given user_id and report_id
-            host = User.query.filter_by(id=host_id).first()
+            user = User.query.filter_by(id=user_id).first()
+            report = User.query.filter_by(id=report_id).first()
+
+            org_id = user.organization_id
+
+            org = Organization.query.filter_by(id=org_id).first()
+
+            org_name = org.name
 
             emails = []
-            organization_id = None
 
-            
+            attendees_info = [
+                {"first_name": user.first_name, 
+                 "last_name": user.last_name, 
+                 "email": user.email,
+                 "user_id": user.id,
+                 "role": "Manager"},
 
-            attendees = [{"first_name": "Travis", 
-                          "last_name": "Starns", 
-                          "email": "Travis.Starns@blenderproducts.com"}, 
-                          {"first_name": "Dave", 
-                           "last_name": "Dorste", 
-                           "email": "Dave.Dorste@blenderproducts.com"}]
+                {"first_name": report.first_name,
+                 "last_name": report.last_name,
+                 "email": report.email,
+                 "user_id": report.id,
+                 "role": "Report"}
+            ]
 
             if user:
                 emails.append(user.email)  # Assuming the Users model has an 'email' field
@@ -121,10 +133,8 @@ def register_events(socketio):
 
             # Start celery worker
             try:
-                dummy_task.delay()
-                do_file_conversions.delay(name, firstname, lastname, date, emails)
+                do_file_conversions.delay(attendees_info, "One-on-One", duration, date, org_name=org_name, org_id=org_id)
+                
                 logger.info("Celery task do_file_conversions started successfully.")
             except Exception as e:
                 logger.error(f"Failed to start Celery task do_file_conversions: {e}")
-
-            print(f"Recording ended for {meeting_name} with attendees: {attendees}")

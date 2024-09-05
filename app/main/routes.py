@@ -1,8 +1,9 @@
 from flask import render_template, jsonify, redirect, url_for, request, session
 from markupsafe import Markup
-from ..models import User, Reports, Meeting, db
+from ..models import User, Reports, Meeting, db, Organization
 from . import main
 from ..utils.s3_utils import check_existing_s3_files, read_text_file
+from ..utils.mongo import get_oneonone_meetings
 from datetime import datetime
 from flask_socketio import emit
 from functools import wraps
@@ -173,9 +174,9 @@ def remove_report(report_id):
 
     return jsonify({"error": "Report relationship not found."}), 404
 
-@main.route("/api/view_meetings/<int:report_id>", methods=["GET"])
+@main.route("/api/view_meetings/oneonone/<int:report_id>", methods=["GET"])
 @jwt_required()
-def view_meetings(report_id):
+def view_oneonone_meetings(report_id):
 
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
@@ -186,12 +187,17 @@ def view_meetings(report_id):
         return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
 
     report = User.query.get(report_id)
+    org = Organization.query.get(org_id)
 
     if not report:
         return jsonify({"error": "Report not found."}), 404
+    
+    attendee_info = {"manager_id": user_id, "report_id": report_id}
 
-    meetings = Meeting.query.filter_by(report_id=report_id).all()
-    meetings_list = [{"meeting_id": m.id, "date": m.date, "summary": m.s3_summary_name} for m in meetings]
+    meetings = get_oneonone_meetings("One-on-One", org.name, org_id, attendee_info)
+
+
+    meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
 
     return jsonify({"report": {"id": report.id, "first_name": report.first_name, "last_name": report.last_name}, "meetings": meetings_list}), 200
 
@@ -239,23 +245,24 @@ def view_meeting_details(meeting_id):
         return jsonify({"error": str(e)}), 500
     
 
-@main.route('/api/record/<int:report_id>', methods=["GET"])
+@main.route('/api/oneonone/<int:report_id>', methods=['GET'])
 @jwt_required()
-def record(report_id):
+def oneonone(report_id):
     """
-    POST request: 
+    GET request: 
         - Receives: {
                         "report_id": 139
                     }
 
         - Returns: {
-                        "date": "08-27-2024",
-                        "firstname": "Joey",
-                        "lastname": "Smaloney",
-                        "message": "Ready to record.",
-                        "report_id": 139,
-                        "user_id": 135,
-                        "username": "DanielHill"
+                        "next_step": "record",
+                        "user_id": user.id,
+                        "report_id": report_id,
+                        "manager_firstname": user.first_name,
+                        "manager_lastname": user.last_name,
+                        "report_firstname": report.first_name,
+                        "report_lastname": report.last_name,
+                        "date": date
                     }
     """
 
