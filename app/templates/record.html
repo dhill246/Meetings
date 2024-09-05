@@ -55,9 +55,7 @@
       let segmentInterval;
       let pauseTimeout;
       const socket = io();
-      socket.on("connect", () => {
-        console.log("Connected to server via Socket.io");
-      });
+      socket.on("connect", () => {});
 
       let startTime,
         updatedTime,
@@ -157,7 +155,6 @@
             document.getElementById("startButton").style.display = "none";
             document.getElementById("stopButton").style.display = "block";
             document.getElementById("pauseButton").style.display = "block";
-            console.log("Recording started");
             mediaRecorder.start();
 
             segmentCounter = 1;
@@ -165,10 +162,9 @@
 
             mediaRecorder.ondataavailable = function (event) {
               if (event.data.size > 0) {
-                console.log("Data available from recording", event.data);
+                // console.log("Data available from recording", event.data);
                 const fileKey = `${username}/${firstname}${lastname}/${date}/${segmentCounter}.webm`;
                 segmentCounter++;
-                console.log("Emitting audio chunk:", fileKey);
                 socket.emit("audio_chunk", {
                   audioData: event.data,
                   key: fileKey,
@@ -198,14 +194,12 @@
       }
 
       function stopRecording() {
-        console.log("Stop button clicked");
         if (mediaRecorder && mediaRecorder.state !== "inactive") {
           clearInterval(segmentInterval);
 
           mediaRecorder.onstop = () => {
             if (mediaRecorder && mediaRecorder.state !== "inactive") {
               const fileKey = `${username}_${date}/${segmentCounter}.webm`;
-              console.log("Emitting audio chunk:", fileKey);
               socket.emit("audio_chunk", {
                 audioData: mediaRecorder,
                 key: fileKey,
@@ -216,7 +210,7 @@
 
             // Send the audio_end event after a short delay to ensure all chunks are processed
             setTimeout(() => {
-              console.log("Emitting audio end.");
+              // console.log("Emitting audio end.");
               socket.emit("audio_end", {
                 user_id: user_id,
                 report_id: report_id,
@@ -239,7 +233,6 @@
           clearInterval(tInterval); // Stop the timer
           recordingStatus.textContent = "Recording stopped";
           recordingStatus.className = "recording-stopped"; // Change to gray
-          console.log("Recording stopped");
           document.getElementById("stopButton").style.display = "none";
           document.getElementById("pauseButton").style.display = "none";
           document.getElementById("resumeButton").style.display = "none";
@@ -248,7 +241,7 @@
           // Hide the message about the 1-hour pause limit
           document.getElementById("pauseMessage").style.display = "none";
         } else {
-          console.log("Recorder is inactive or not defined");
+          // console.log("Recorder is inactive or not defined");
         }
       }
 
@@ -260,7 +253,7 @@
           recordingStatus.textContent = "Recording stopped";
           recordingStatus.className = "recording-stopped"; // Change to gray
           // Let the client know the recording is paused
-          console.log("Recording is paused");
+          // console.log("Recording is paused");
           // Hide the pause button and show the resume button
           document.getElementById("pauseButton").style.display = "none";
           document.getElementById("resumeButton").style.display = "block";
@@ -284,7 +277,7 @@
           recordingStatus.textContent = "Recording in progress";
           recordingStatus.className = "recording-in-progress"; // Resume pulsing red style
           // Let the client know the recording is resumed
-          console.log("Recording resumed");
+          // console.log("Recording resumed");
           // Hide the resume button and show the pause button
           document.getElementById("resumeButton").style.display = "none";
           document.getElementById("pauseButton").style.display = "block";

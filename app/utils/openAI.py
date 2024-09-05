@@ -4,6 +4,8 @@ import subprocess
 import os
 from pathlib import Path
 import time
+from app.utils.mongo import get_prompts, add_meeting
+import json
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
@@ -64,13 +66,13 @@ def summarize_meeting(input_file, output_file, username):
         content = file.read()
 
     system_prompt = """Please analyze the following 1:1 meeting transcript and provide a detailed summary. The summary should include the following:
-Tone of the Meeting: Describe the overall mood and atmosphere during the meeting. Was it collaborative, tense, productive, casual, etc.?
-Key Takeaways: Identify the most important points discussed during the meeting. What were the main themes or topics covered?
-Action Items: List all the action items that were agreed upon, including who is responsible for each and any deadlines mentioned.
-Decisions Made: Highlight any decisions or agreements that were reached during the meeting. Include the rationale behind these decisions if discussed.
-Concerns or Challenges: Note any concerns, challenges, or issues that were raised during the meeting, along with any proposed solutions or next steps.
-Opportunities: Identify any potential opportunities that were discussed or hinted at during the meeting, whether for improvement, growth, or new initiatives.
-Additional Notes: Include any other relevant information that could help in understanding the full context and outcomes of the meeting."""
+                        Tone of the Meeting: Describe the overall mood and atmosphere during the meeting. Was it collaborative, tense, productive, casual, etc.?
+                        Key Takeaways: Identify the most important points discussed during the meeting. What were the main themes or topics covered?
+                        Action Items: List all the action items that were agreed upon, including who is responsible for each and any deadlines mentioned.
+                        Decisions Made: Highlight any decisions or agreements that were reached during the meeting. Include the rationale behind these decisions if discussed.
+                        Concerns or Challenges: Note any concerns, challenges, or issues that were raised during the meeting, along with any proposed solutions or next steps.
+                        Opportunities: Identify any potential opportunities that were discussed or hinted at during the meeting, whether for improvement, growth, or new initiatives.
+                        Additional Notes: Include any other relevant information that could help in understanding the full context and outcomes of the meeting."""
 
     def generate_meeting_notes(temperature, system_prompt, model):
         response = client.chat.completions.create(
@@ -104,3 +106,56 @@ Additional Notes: Include any other relevant information that could help in unde
     # Write the text to the file
     with open(local_file_path, 'w') as file:
         file.write(transcribed_text)
+
+
+def summarize_meeting_improved(input_file, output_file, username, org_name, org_id, type_name, attendees, meeting_duration):
+
+    with open(input_file, 'r', encoding="utf-8") as file:
+        # Read the entire content of the file
+        content = file.read()
+
+    system_prompt, response_format = get_prompts(org_name=org_name,
+                                                 org_id=org_id,
+                                                 type_name=type_name)
+    model = "gpt-4o"
+    temperature = 0
+
+    response = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        messages=[
+            {
+                "role": "system",
+                "content": system_prompt + "\n" + response_format
+            },
+            {
+                "role": "user",
+                "content": content
+            }
+        ]
+    )
+
+    transcribed_text, prompt_tokens, completion_tokens = [response.choices[0].message.content, response.usage.prompt_tokens, response.usage.completion_tokens]
+
+    folder_file_path = os.path.join(f"tmp_{username}", "summarized_meeting")
+    local_file_path = os.path.join(folder_file_path,  output_file)
+
+    if not os.path.exists(folder_file_path):
+        os.makedirs(folder_file_path)
+
+    # Write the text to the file
+    with open(local_file_path, 'w') as file:
+        file.write(transcribed_text)
+
+    document = json.loads(transcribed_text)
+    add_meeting(org_name, org_id, content, document, attendees, meeting_duration, collection_name="Meetings")
+
+    return document
+
+# if __name__ == "__main__":
+#     json_data = summarize_meeting_improved(input_file="tmp_Daniel Hill\joined_text\Daniel Hill_OliviaSmith_09-02-2024.txt", 
+#                                            output_file="Daniel Hill_OliviaSmith_09-02-2024.txt",
+#                                            username="Daniel Hill",
+#                                            org_name="BlenderProducts",
+#                                            org_id=1,
+#                                            type_name="One-on-One")

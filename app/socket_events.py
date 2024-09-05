@@ -1,21 +1,50 @@
-from flask_socketio import emit
-from flask import current_app
-from app.models import User, Meeting
+from flask_socketio import disconnect
+from flask import current_app, request
+from app.models import User, Organization
 from .utils.s3_utils import upload_audio_to_s3
 from .utils.Meetings import create_meeting
 from io import BytesIO
-from .tasks import do_file_conversions
+from .tasks import do_file_conversions, dummy_task
 from threading import Lock
+from flask_jwt_extended import decode_token, verify_jwt_in_request, get_jwt_identity
+import jwt
+import logging
 
-audio_end_lock = Lock()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# audio_end_lock = Lock()
+
+def verify_jwt(token):
+    try:
+        claims = decode_token(token)
+        return claims
+    except jwt.InvalidTokenError:
+        print("JWT INVALID")
+        return None
 
 def register_events(socketio):
 
     @socketio.on('connect')
     def test_connect():
-        print("Client connected")  # This will show in the terminal running your Flask app
-        # current_app.logger.info("Client connected using app.logger")
+        print("TRYING TO CONNECT")
+        # try:
+        #     # Manually extract token from request headers
+        #     token = request.args.get("token")
+
+        #     # If token is not provided, disconnect
+        #     if not token:
+        #         return disconnect()
+
+        #     # Verify the token
+        #     claims = verify_jwt(token)
+        #     user_id = claims['sub']['user_id']
+
+        #     print(f"Client connected with user ID: {user_id}")
+        # except Exception as e:
+        #     print(f"Connection failed: {str(e)}")
+        #     return disconnect()
 
     @socketio.on('audio_chunk')
     def handle_audio_chunk(data):
@@ -24,8 +53,9 @@ def register_events(socketio):
         # happens frequently, get that data (webm file)
         key = data["key"]
         audio = data["audioData"]
-
-        file_name = key.split("/")[-1]
+        
+        file_name = key.split("_")[-1]
+        print(f"File name: {file_name}")
         number = int(file_name.split(".")[0])
 
         if number < 480:
@@ -55,27 +85,46 @@ def register_events(socketio):
             print("An audio file from a meeting longer than 2 hours is trying to be uploaded. Blocking.")
 
 
-    @socketio.on('audio_end')
+    @socketio.on('audio_end_oneonone')
     def handle_audio_end(data):
-        with audio_end_lock:
-
+        # with audio_end_lock:
+        if True:
             print("Audio end socket message received.")
+            print("\n")
+            print(data)
+            print("\n")
 
             user_id = data["user_id"]
             report_id = data["report_id"]
-            name = data['username']
             date = data['date']
-            firstname = data["firstname"]
-            lastname = data["lastname"]
-            key_prefix = f"{name}_{date}"
+            duration = data["duration"]
 
-            event_key = f"{data['user_id']}_{data['report_id']}_{data['date']}"
 
             # Query the database for emails associated with the given user_id and report_id
             user = User.query.filter_by(id=user_id).first()
             report = User.query.filter_by(id=report_id).first()
 
+            org_id = user.organization_id
+
+            org = Organization.query.filter_by(id=org_id).first()
+
+            org_name = org.name
+
             emails = []
+
+            attendees_info = [
+                {"first_name": user.first_name, 
+                 "last_name": user.last_name, 
+                 "email": user.email,
+                 "user_id": user.id,
+                 "role": "Manager"},
+
+                {"first_name": report.first_name,
+                 "last_name": report.last_name,
+                 "email": report.email,
+                 "user_id": report.id,
+                 "role": "Report"}
+            ]
 
             if user:
                 emails.append(user.email)  # Assuming the Users model has an 'email' field
@@ -83,8 +132,9 @@ def register_events(socketio):
                 emails.append(report.email)  # Adding the report's email
 
             # Start celery worker
-            do_file_conversions.delay(name, firstname, lastname, date, emails)
-
-            create_meeting(user_id, report_id, user.organization_id, f"Summary_{name}_{firstname}{lastname}_{date}.txt")
-
-            print(f"Recording ended for {key_prefix}")
+            try:
+                do_file_conversions.delay(attendees_info, "One-on-One", duration, date, org_name=org_name, org_id=org_id)
+                
+                logger.info("Celery task do_file_conversions started successfully.")
+            except Exception as e:
+                logger.error(f"Failed to start Celery task do_file_conversions: {e}")

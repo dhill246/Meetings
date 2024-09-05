@@ -29,11 +29,15 @@ def combine_text_files(input_folder, output_file, username):
                 # Construct full file path
                 file_path = os.path.join(input_folder, filename)
                 # Open each text file in read mode
-                with open(file_path, 'r') as infile:
-                    # Read the contents of the file and write it to the output file
-                    outfile.write(infile.read())
-                    # Add a newline character to separate the contents of different files
-                    outfile.write('\n')
+                try:
+                    # Open each text file in read mode
+                    with open(file_path, "r", encoding="utf-8") as infile:
+                        # Read the contents of the file and write it to the output file
+                        outfile.write(infile.read())
+                        # Add a newline character to separate the contents of different files
+                        outfile.write("\n")
+                except UnicodeDecodeError as e:
+                    print(f"Skipping file {filename} due to encoding error: {e}")
 
 def read_text_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -99,4 +103,35 @@ def summary_to_word_doc(input_file, username):
     return output_file_path
 
 
+def json_to_word(input_file, username, json_data, title="Meeting Summary"):
+
+    base_name = os.path.splitext(os.path.basename(input_file))[0]
+    output_folder = os.path.join(f"tmp_{username}", "word_summary")
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    output_file_path = os.path.join(output_folder, f"{base_name}.docx")
+
+    # Create a new Document
+    doc = Document()
+
+    doc.add_heading(title, level=0)
+
+    # Iterate over the JSON data
+    for key, value in json_data.items():
+        # Add section header
+        doc.add_heading(key, level=1)
+
+        if isinstance(value, str):
+            # Add a paragraph for string values
+            doc.add_paragraph(value)
+        elif isinstance(value, list):
+            # Add bullet points for list values
+            for item in value:
+                doc.add_paragraph(item, style='ListBullet')
     
+    # Save the document
+    doc.save(output_file_path)
+    print(f"Document saved as {output_file_path}")
+
+    return output_file_path

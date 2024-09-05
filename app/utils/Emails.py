@@ -6,7 +6,7 @@ load_dotenv()
 MAILGUN_API_KEY = os.getenv('MAILGUN_API_KEY')
 MAILGUN_DOMAIN = os.getenv('MAILGUN_DOMAIN')
 
-def send_email_to_user(file_path, user, report, date, email="danielthill23@gmail.com"):
+def send_email_to_user(file_path, title, email="danielthill23@gmail.com"):
     try:
         api_url = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages"
 
@@ -16,8 +16,8 @@ def send_email_to_user(file_path, user, report, date, email="danielthill23@gmail
             files=[("attachment", open(file_path, "rb"))],
             data={"from": f"Daniel Hill <daniel@{MAILGUN_DOMAIN}>",
                 "to": [email],
-                "subject": f"{user} meeting with {report} from {date}",
-                "text": f"Here is the summary of your meeting from {date} with {report}."})
+                "subject": title,
+                "text": f"Here is your meeting. Please review and let me know if you have any issues."})
     
     except Exception as e:
         print(f"Failed to send email: {e}")
@@ -31,7 +31,7 @@ def send_email_to_user(file_path, user, report, date, email="danielthill23@gmail
             data={"from": f"Daniel Hill <daniel@{MAILGUN_DOMAIN}>",
                 "to": ["danielthill23@gmail.com"],
                 "subject": "FAILED MEETING",
-                "text": f"A meeting with {user} and {report} failed to process."})
+                "text": f"A meeting called {title} failed to process."})
 
 
 if __name__ == "__main__":

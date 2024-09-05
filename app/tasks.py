@@ -5,10 +5,12 @@ import logging
 import time
 from celery.signals import worker_shutdown
 import boto3
-from app.utils.openAI import transcribe_webm, summarize_meeting
-from app.utils.JoinTranscriptions import combine_text_files, summary_to_word_doc
+from app.utils.openAI import transcribe_webm, summarize_meeting, summarize_meeting_improved
+from app.utils.JoinTranscriptions import combine_text_files, summary_to_word_doc, json_to_word
 from app.utils.s3_utils import upload_file_to_s3, download_file, list_files, delete_from_s3
 from app.utils.Emails import send_email_to_user
+from dotenv import load_dotenv
+load_dotenv()
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -34,13 +36,6 @@ s3_client = boto3.client(
     aws_secret_access_key=os.getenv('BUCKETEER_AWS_SECRET_ACCESS_KEY'),
 )
 
-@app.task
-def write_out_some_text(text=""):
-    logger.info(f"WRITING TEXT NOW")
-
-    with open("HeresaFile.txt", "w") as f:
-        f.write(text)
-
 def delete_folder(folder_path):
     """Delete a folder and its contents after ensuring all files are closed."""
     try:
@@ -64,75 +59,96 @@ def safe_delete_folder(folder_path, retries=3, delay=5):
         logger.error(f"Failed to delete folder {folder_path} after {retries} attempts")
 
 @app.task
-def do_file_conversions(username, firstname, lastname, date, emails):
-    report = f"{firstname}{lastname}"
-    filepath_to_convert = os.path.join(username, report, date)
-    filepath_to_convert = filepath_to_convert.replace("\\", "/")
-    
-    logger.info(f"Starting file process for path: {filepath_to_convert}")
-    
-    try:
-        files = list_files(BUCKET_NAME, filepath_to_convert)
-        logger.info(f"Found {len(files)} files to process.")
+def dummy_task():
+    # Write a function that writes out a text file
+    with open("dummy_task.txt", "w") as f:
+        f.write("This is a dummy task.")
+    logger.info("Dummy task executed.")
 
-        if len(files) != 0:
+@app.task
+def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, org_name, org_id):
 
-            for item in files:
-                user, report, date, file = item.split("/")
+    emails = [person_info["email"] for person_info in attendees_info]
 
-                # Download the file
-                download_file(BUCKET_NAME, item, user, report, date, file)
-                logger.info(f"Downloaded file: {item}")
+    if meeting_type == "One-on-One":
+        manager_info, report_info = attendees_info
 
-                # Process the file (convert to .wav)
-                temp_download_folder = os.path.join(f"tmp_{username}", "downloaded_webm_file")
-                temp_transcribed_folder = os.path.join(f"tmp_{username}", "transcribed_chunks")
-                
-                full_webm_path = os.path.join(temp_download_folder, user, report, date, file)
-                transcribe_webm(full_webm_path, username)
-                logger.info(f"Successfully transcribed file: {item} into text.")
+        meeting_title = f"{meeting_type} Meeting with {manager_info['first_name']} {manager_info['last_name']} and {report_info['first_name']} {report_info['last_name']} on {date}"
+        report = f"{report_info['first_name']}{report_info['last_name']}"
+
+        username = f"{manager_info['first_name']} {manager_info['last_name']}"
+        
+        filepath_to_convert = os.path.join(username, report, date)
+        filepath_to_convert = filepath_to_convert.replace("\\", "_")
+        filepath_to_convert = filepath_to_convert.replace("/", "_")
+
+        logger.info(f"Starting file process for path: {filepath_to_convert}")
+        
+        try:
+            files = list_files(BUCKET_NAME, filepath_to_convert)
+            logger.info(f"Found {len(files)} files to process.")
+
+            if len(files) != 0:
+
+                for item in files:
+                    user, report, date, file = item.split("_")
+
+                    # Download the file
+                    download_file(BUCKET_NAME, item, user, report, date, file)
+                    logger.info(f"Downloaded file: {item}")
+
+                    # Process the file (convert to .wav)
+                    temp_download_folder = os.path.join(f"tmp_{username}", "downloaded_webm_file")
+                    temp_transcribed_folder = os.path.join(f"tmp_{username}", "transcribed_chunks")
+                    
+                    full_webm_path = os.path.join(temp_download_folder, user, report, date, file)
+                    transcribe_webm(full_webm_path, username)
+                    logger.info(f"Successfully transcribed file: {item} into text.")
 
 
-            input_folder = os.path.join(f"tmp_{username}", "transcribed_chunks", username, report, date)
-            output_file = f"{username}_{report}_{date}.txt"
-            combine_text_files(input_folder, output_file, username)
-            logger.info(f"Successfully combined all text file in {input_folder} into {output_file}")
+                input_folder = os.path.join(f"tmp_{username}", "transcribed_chunks", username, report, date)
+                output_file = f"{username}_{report}_{date}.txt"
+                combine_text_files(input_folder, output_file, username)
+                logger.info(f"Successfully combined all text file in {input_folder} into {output_file}")
 
-            raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
-            summarize_meeting(raw_text_path, output_file, username)
-            logger.info(f"Successfully summarized: {raw_text_path}.")
+                raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
+                # summarize_meeting(raw_text_path, output_file, username)
+                print("Arguments for summarizing meeting: ", raw_text_path, output_file, username, org_name, org_id, meeting_type)
+                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, attendees_info, meeting_duration)
+                logger.info(f"Successfully summarized: {raw_text_path}.")
 
-            summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)
-            word_doc_path = summary_to_word_doc(summarized_meeting_path, username)
-            logger.info(f"Successfully turned: {summarized_meeting_path} into a word document.")
+                summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)
+                # word_doc_path = summary_to_word_doc(summarized_meeting_path, username)
+                word_doc_path = json_to_word(summarized_meeting_path, username, json_data, meeting_title)
+                logger.info(f"Successfully turned: {summarized_meeting_path} into a word document.")
 
-            print("Sending email")
+                print("Sending email")
 
-            for email in emails:
-                send_email_to_user(word_doc_path, user, report, date, email)
+                for email in emails:
+                    send_email_to_user(word_doc_path, meeting_title, email)
 
-            # Upload raw text to S3
-            upload_path = "Transcription_" + output_file
-            upload_file_to_s3(raw_text_path, upload_path)
-            logger.info(f"Successfully uploaded: {raw_text_path} to S3 as {upload_path}.")
+                # Upload raw text to S3
+                upload_path = "Transcription_" + output_file
+                upload_file_to_s3(raw_text_path, upload_path)
+                logger.info(f"Successfully uploaded: {raw_text_path} to S3 as {upload_path}.")
 
-            # Upload summarized text to S3
-            upload_path = "Summary_" + output_file
-            upload_file_to_s3(summarized_meeting_path, upload_path)
-            logger.info(f"Successfully uploaded: {summarized_meeting_path} to S3 as {upload_path}.")
+                # Upload summarized text to S3
+                upload_path = "Summary_" + output_file
+                upload_file_to_s3(summarized_meeting_path, upload_path)
+                logger.info(f"Successfully uploaded: {summarized_meeting_path} to S3 as {upload_path}.")
 
-            # Safely try deleting folder
-            logger.info(f"Attempting to delete tmp_{username} folder:")
-            safe_delete_folder(f"tmp_{username}")
-            logger.info(f"Successfully deleted tmp_{username} folder.")
+                # Safely try deleting folder
+                logger.info(f"Attempting to delete tmp_{username} folder:")
+                safe_delete_folder(f"tmp_{username}")
+                logger.info(f"Successfully deleted tmp_{username} folder.")
 
-            # Destroy audio files in S3 bucket
-            logger.info(f"Attempting to delete audio files from bucket:")
-            delete_from_s3(files)
-            logger.info(f"Successfully deleted audio files from bucket.")
+                # Destroy audio files in S3 bucket
+                logger.info(f"Attempting to delete audio files from bucket:")
+                delete_from_s3(files)
+                logger.info(f"Successfully deleted audio files from bucket.")
 
-    except Exception as e:
-        logger.error(f"Error during file conversion process: {e}")
+        except Exception as e:
+            logger.error(f"Error during file conversion process: {e}")
 
 
 @worker_shutdown.connect
