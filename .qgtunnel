@@ -7,7 +7,7 @@ transparent = true
 
 [qgtunnel.1]
 accept = "127.0.0.2:27017"
-connect = "cluster0-shard-00-01.ebbax.mongodb.net:2701"
+connect = "cluster0-shard-00-01.ebbax.mongodb.net:27017"
 encrypted = false
 transparent = true
 
