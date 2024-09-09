@@ -2,7 +2,7 @@
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pytz import timezone
 from dotenv import load_dotenv
 
@@ -96,9 +96,49 @@ def get_oneonone_meetings(meeting_type, org_name, org_id, attendee_info, collect
 
     return results
 
+# Get the number of meetings within the past month for a specific manager 
+def get_meetings_last_month(org_name, org_id, manager_id, days=30, collection_name="Meetings"):
+
+    database = client[org_name]
+    collection = database[collection_name]
+    # Calculate the date for one month ago
+    one_month_ago = datetime.now() - timedelta(days=days)
+    print(one_month_ago)
+
+
+    # Query to find meetings with the manager's user_id in attendees array and date within the past month
+    results = collection.find({
+        "type_name": "One-on-One",
+        "org_id": org_id,
+        "attendees": {
+            "$elemMatch": {
+                "user_id": manager_id,
+                "role": "Manager"
+            }
+        },
+        "date": {"$gte": one_month_ago}
+    })
+
+    return list(results)
+
+# Helper function to convert meeting duration from "Xh Xm Xs" to total seconds
+def duration_to_seconds(duration_str):
+    parts = duration_str.split()
+    hours = int(parts[0].replace("h", ""))
+    minutes = int(parts[1].replace("m", ""))
+    seconds = int(parts[2].replace("s", ""))
+    return hours * 3600 + minutes * 60 + seconds
 
 if __name__ == "__main__":
 
-    attendee_info = {"manager_id": 147, "report_id": 149}
+    results = get_meetings_last_month("BlenderProducts", 1, 154)
+    meeting_lengths = []
+    for meeting in results:
+        duration_str = meeting.get("meeting_duration", "0h 0m 0s")
+        total_seconds = duration_to_seconds(duration_str)
+        meeting_lengths.append(total_seconds)
 
-    results = get_oneonone_meetings("One-on-One", "BlenderProducts", 1, attendee_info)
+
+    average_length_minutes = sum(meeting_lengths) / len(meeting_lengths) / 60
+
+    print(f"Average meeting length: {average_length_minutes} minutes")
