@@ -1,6 +1,6 @@
 from flask import render_template, jsonify, redirect, url_for, request
 from flask_login import login_user, logout_user
-from ..models import Organization, User, db
+from ..models import Organization, User, db, Invites
 from werkzeug.security import generate_password_hash
 import logging
 from . import auth
@@ -79,16 +79,22 @@ def login():
 
 
 @auth.route("/api/signup", methods=["POST"])
-@jwt_required()
 def signup():
-    claims = verify_jwt_in_request()[1]
-    org_id = claims['sub']['org_id']
+    token = request.args.get("token")
 
-    logging.info(f"Found org id: {org_id}")
+    if not token:
+        return jsonify({"error": "Missing token."}), 400
+    
+    invite = Invites.query.filter_by(token=token).first()
+    
+    if not invite:
+        return jsonify({"error": "Invalid or expired invite token."}), 400
+    
+    org_id = invite.organization_id  # Assuming the Invite model has an org_id field
 
-    if not org_id:
-        # return redirect(url_for("auth.org"))
-        return jsonify({"error": "No organization found in session", "next_step": "org"}), 400
+      # Ensure the request is JSON
+    if not request.is_json:
+        return jsonify({"error": "Invalid content type. Must be JSON."}), 400
 
     data = request.json
     first_name = data.get("first_name")
