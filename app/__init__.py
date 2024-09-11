@@ -83,8 +83,9 @@ def create_app():
     # Redirection from Heroku domain to custom domain
     @app.before_request
     def before_request():
-        if "herokuapp" in request.host:
-            return redirect("https://www.morphdatastrategies.com", code=301)
+        host = request.host
+        if "herokuapp" in host or host == "www.morphdatastrategies.com":
+            return redirect("https://meet.morphdatastrategies.com/home", code=301)
 
     # Set up basic logging output for the app
     # logging.basicConfig(level=logging.INFO)
