@@ -17,6 +17,8 @@ client = MongoClient(uri, server_api=ServerApi(version="1", strict=True, depreca
 
 def get_prompts(org_name, org_id, collection_name="MeetingTypes", type_name="One-on-One"):
 
+    type_name = "One-on-One"
+
     print(f"Getting prompts for {org_name} with org_id {org_id} and type_name {type_name}")
 
     database = client[org_name]
