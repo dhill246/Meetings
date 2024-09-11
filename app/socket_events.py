@@ -2,7 +2,6 @@ from flask_socketio import disconnect
 from flask import current_app, request
 from app.models import User, Organization
 from .utils.s3_utils import upload_audio_to_s3
-from .utils.Meetings import create_meeting
 from io import BytesIO
 from .tasks import do_file_conversions, dummy_task
 from threading import Lock
