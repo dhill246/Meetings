@@ -2,6 +2,7 @@ import requests
 import os
 from dotenv import load_dotenv
 load_dotenv()
+import logging
 
 MAILGUN_API_KEY = os.getenv('MAILGUN_API_KEY')
 MAILGUN_DOMAIN = os.getenv('MAILGUN_DOMAIN')
@@ -35,7 +36,9 @@ def send_email_to_user(file_path, title, email="danielthill23@gmail.com"):
     
 
 def send_invite_email(email, token, org_name):
+    logging.info(f"Sending invite email to {email} for {org_name}")
     try:
+
         api_url = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages"
         signup_url = f"meet.morphdatastrategies.com/auth/usersignup?token={token}"
 
@@ -51,8 +54,7 @@ def send_invite_email(email, token, org_name):
             )
         
     except Exception as e:
-        print(f"Failed to send email: {e}")
-
+        logging.error(f"Failed to send invite to {email}. Token: {token}. Error: {e}")
         return requests.post(
             api_url,
             auth=("api", MAILGUN_API_KEY),
@@ -63,8 +65,6 @@ def send_invite_email(email, token, org_name):
                 "text": f"Failed to send invite to {email}. Token: {token}. Error: {e}"
             }
         )
-
-
 
 
 if __name__ == "__main__":
