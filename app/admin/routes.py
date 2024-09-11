@@ -6,6 +6,7 @@ from ..utils.mongo import get_meetings_last_month, duration_to_seconds
 from ..utils.Emails import send_invite_email
 import secrets
 from datetime import datetime
+import logging
 
 @admin.route('/api/get_managers', methods=["GET"])
 @jwt_required()
@@ -50,7 +51,10 @@ def get_mananagers():
             total_seconds = duration_to_seconds(duration_str)
             meeting_lengths.append(total_seconds)
 
-        average_length_minutes = round(sum(meeting_lengths) / len(meeting_lengths) / 60, 2)        
+        if len(meeting_lengths) == 0:
+            average_length_minutes = 0
+        else:
+            average_length_minutes = round(sum(meeting_lengths) / len(meeting_lengths) / 60, 2)        
 
         managers.append({"id": manager.id, 
                          "first_name": manager.first_name, 
@@ -65,7 +69,7 @@ def get_mananagers():
 @admin.route('/api/send_invite', methods=["POST"])
 @jwt_required()
 def send_invite():
-    print("Trying to send invite")
+    logging.info("Sending invite")
 
     claims = verify_jwt_in_request()[1]
     print("claims:", claims)
@@ -94,11 +98,13 @@ def send_invite():
     print("token:", token)
 
 
+    logging.info("Adding invite to database")
      # Add the existing user as a direct report
     new_invite = Invites(email=email, organization_id=org_id, token=token, date=datetime.now())
     db.session.add(new_invite)
     db.session.commit()
 
+    logging.info("Sending invite email")
     send_invite_email(email, token, org_name)
 
     return jsonify({"message": "Invite sent successfully"}), 200
