@@ -137,3 +137,49 @@ def register_events(socketio):
                 logger.info("Celery task do_file_conversions started successfully.")
             except Exception as e:
                 logger.error(f"Failed to start Celery task do_file_conversions: {e}")
+
+
+    @socketio.on('audio_end_generalmeeting')
+    def handle_gen_audio_end(data):
+        # with audio_end_lock:
+        if True:
+            print("Audio end socket message received.")
+            print("\n")
+            print(data)
+            print("\n")
+
+            user_id = data["user_id"]
+            meeting_type = data["meeting_type"]
+            date = data['date']
+            duration = data["duration"]
+
+
+            # Query the database for emails associated with the given user_id and report_id
+            user = User.query.filter_by(id=user_id).first()
+
+            org_id = user.organization_id
+
+            org = Organization.query.filter_by(id=org_id).first()
+
+            org_name = org.name
+
+            emails = []
+
+            attendees_info = [
+                {"first_name": user.first_name, 
+                 "last_name": user.last_name, 
+                 "email": user.email,
+                 "user_id": user.id,
+                 "role": "Manager"},
+            ]
+
+            if user:
+                emails.append(user.email)  # Assuming the Users model has an 'email' field
+
+            # Start celery worker
+            try:
+                do_file_conversions.delay(attendees_info, meeting_type, duration, date, org_name=org_name, org_id=org_id)
+                
+                logger.info("Celery task do_file_conversions started successfully.")
+            except Exception as e:
+                logger.error(f"Failed to start Celery task do_file_conversions: {e}")

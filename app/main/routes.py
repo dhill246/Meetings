@@ -199,48 +199,48 @@ def view_oneonone_meetings(report_id):
 
     return jsonify({"report": {"id": report.id, "first_name": report.first_name, "last_name": report.last_name}, "meetings": meetings_list}), 200
 
-@main.route('/api/meeting/<int:meeting_id>', methods=['GET'])
-@jwt_required()
-def view_meeting_details(meeting_id):
-    try:
-        claims = verify_jwt_in_request()[1]
-        org_id = claims['sub']['org_id']
-        user_id = claims['sub']['user_id']
+# @main.route('/api/meeting/<int:meeting_id>', methods=['GET'])
+# @jwt_required()
+# def view_meeting_details(meeting_id):
+#     try:
+#         claims = verify_jwt_in_request()[1]
+#         org_id = claims['sub']['org_id']
+#         user_id = claims['sub']['user_id']
 
-        if not org_id or not user_id:
-            print("Please log in to access this page.")
-            return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+#         if not org_id or not user_id:
+#             print("Please log in to access this page.")
+#             return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
         
-        meeting = Meeting.query.get(meeting_id)
+#         meeting = Meeting.query.get(meeting_id)
 
-        if not meeting:
-            return jsonify({"error": "Meeting not found."}), 404
+#         if not meeting:
+#             return jsonify({"error": "Meeting not found."}), 404
 
-        # Extract report_id from the meeting object
-        report = User.query.get(meeting.report_id)
-        if not report:
-            return jsonify({"error": "Report not found."}), 404
+#         # Extract report_id from the meeting object
+#         report = User.query.get(meeting.report_id)
+#         if not report:
+#             return jsonify({"error": "Report not found."}), 404
 
-        meeting_summary = read_text_file(meeting.s3_summary_name)
-        formatted_summary = meeting_summary.replace('- ', '\n\n- ')
+#         meeting_summary = read_text_file(meeting.s3_summary_name)
+#         formatted_summary = meeting_summary.replace('- ', '\n\n- ')
 
-        # Convert the Markdown text to HTML
-        meeting_summary_html = markdown.markdown(formatted_summary)
+#         # Convert the Markdown text to HTML
+#         meeting_summary_html = markdown.markdown(formatted_summary)
 
-        # return render_template('meeting_details.html', meeting_summary=meeting_summary_html, meeting=meeting, report=report)
-        return jsonify({
-            "meeting_summary_html": meeting_summary_html,
-            "meeting": {"id": meeting.id, "date": meeting.date, "summary": meeting.summary},
-            "report": {"id": report.id, "first_name": report.first_name, "last_name": report.last_name}
-        }), 200
+#         # return render_template('meeting_details.html', meeting_summary=meeting_summary_html, meeting=meeting, report=report)
+#         return jsonify({
+#             "meeting_summary_html": meeting_summary_html,
+#             "meeting": {"id": meeting.id, "date": meeting.date, "summary": meeting.summary},
+#             "report": {"id": report.id, "first_name": report.first_name, "last_name": report.last_name}
+#         }), 200
     
-    except ClientError as e:
-        if e.response['Error']['Code'] == 'NoSuchKey':
-            return jsonify({"error": "File not found in S3 bucket"}), 404
-        else:
-            return jsonify({"error": "An unexpected error occurred"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#     except ClientError as e:
+#         if e.response['Error']['Code'] == 'NoSuchKey':
+#             return jsonify({"error": "File not found in S3 bucket"}), 404
+#         else:
+#             return jsonify({"error": "An unexpected error occurred"}), 500
+#     except Exception as e:
+#         return jsonify({"error": str(e)}), 500
     
 
 @main.route('/api/oneonone/<int:report_id>', methods=['GET'])
@@ -299,5 +299,62 @@ def oneonone(report_id):
                 "manager_lastname": user.last_name,
                 "report_firstname": report.first_name,
                 "report_lastname": report.last_name,
+                "date": date
+            }), 200
+
+
+@main.route('/api/generalmeeting/<meeting_type>', methods=['GET'])
+@jwt_required()
+def generalmeeting(meeting_type):
+    """
+    GET request: 
+        - Receives: {
+                        "meeting_type": "Any"
+                    }
+
+        - Returns: {
+                        "next_step": "record",
+                        "user_id": user.id,
+                        "report_id": report_id,
+                        "manager_firstname": user.first_name,
+                        "manager_lastname": user.last_name,
+                        "report_firstname": report.first_name,
+                        "report_lastname": report.last_name,
+                        "date": date
+                    }
+    """
+
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+
+    if not org_id or not user_id:
+        print("Please log in to access this page.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+
+    user = User.query.get(user_id)
+
+    # Get the current date
+    today = datetime.now()
+
+    # Format the date as MM-DD-YYYY
+    date = today.strftime("%m-%d-%Y")
+
+    username = f"{user.first_name} {user.last_name}"
+    firstname = meeting_type
+    lastname = ""
+
+    list_s3 = check_existing_s3_files()
+    list_s3_webm = set(["/".join(x.rsplit("/", 1)[:-1]) for x in list_s3])
+
+    if (f"{username}/{firstname}{lastname}/{date}" in list_s3_webm) or (f"Summary_{username}_{firstname}{lastname}_{date}.txt" in list_s3):
+        return jsonify({"error": "Duplicate record found."}), 409
+
+    return  jsonify({
+                "next_step": "record",
+                "user_id": user.id,
+                "manager_firstname": user.first_name,
+                "manager_lastname": user.last_name,
+                "meeting_type": meeting_type,
                 "date": date
             }), 200
