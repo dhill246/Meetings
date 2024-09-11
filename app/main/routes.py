@@ -6,6 +6,7 @@ from ..utils.mongo import get_oneonone_meetings
 from datetime import datetime
 from flask_socketio import emit
 from functools import wraps
+import logging
 from botocore.exceptions import ClientError
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 
