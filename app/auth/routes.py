@@ -117,9 +117,28 @@ def signup():
 
     # Create new user if they don't exist
     if existing_user:
-        logging.info(f"User with email {email} already exists.")
+        logging.info(existing_user.password_hash)
+        if existing_user.password_hash is None:
+            existing_user.password_hash = generate_password_hash(password)
+            # Commit the changes to the database
+            db.session.commit()
 
-        return jsonify({"error": "User exists. Please log in."}), 409
+            logging.info(f"User with email {existing_user.email} has set their password.")
+
+            access_token = create_access_token(identity={"org_id": existing_user.organization_id,
+                                                "user_id": existing_user.id,
+                                                "role": existing_user.role})
+            return jsonify({
+                "message": "Existing user successfully set password",
+                "access_token": access_token,
+                "next_step": "home"
+            }), 201
+
+        else:
+
+            logging.info(f"User with email {email} already exists.")
+
+            return jsonify({"error": "User exists. Please log in."}), 409
 
     
     logging.info(f"Creating new user with email {email}.")
