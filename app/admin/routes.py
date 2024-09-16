@@ -7,10 +7,12 @@ from ..utils.Emails import send_invite_email
 import secrets
 from datetime import datetime
 import logging
+from bson import ObjectId
+from ..utils.mongo import get_all_manager_meetings, get_one_on_ones, get_all_employee_meetings, get_meeting_by_id
 
 @admin.route('/api/get_managers', methods=["GET"])
 @jwt_required()
-def get_mananagers():
+def get_managers():
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
@@ -31,7 +33,7 @@ def get_mananagers():
         return jsonify({"error": "User not found"}), 404
     
     managers_list_db = User.query.filter(
-        User.organization_id == 1,
+        User.organization_id == org_id,
         User.password_hash.isnot(None)
     ).all()
 
@@ -39,7 +41,7 @@ def get_mananagers():
 
     for manager in managers_list_db:
 
-        meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, manager.id, days=30)
+        meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, manager.id, role="Manager", days=30)
 
         # Number of meetings in the past month divided by the number of direct reports
         num_meetings_in_past_month = len(meetings_in_past_x_days)
@@ -65,6 +67,60 @@ def get_mananagers():
 
     return jsonify({"current_user": int(current_user.get_id()), "managers": managers}), 200
 
+@admin.route('/api/get_employees', methods=["GET"])
+@jwt_required()
+def get_employees():
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+    
+    current_org = Organization.query.get(org_id)
+    org_name = current_org.name
+    
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+    
+    employees_list = User.query.filter(
+        User.organization_id == org_id,
+    ).all()
+
+    employees = []
+
+    for employee in employees_list:
+
+        meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, employee.id, role="Report", days=30)
+
+        # Number of meetings in the past month divided by the number of direct reports
+        num_meetings_in_past_month = len(meetings_in_past_x_days)
+
+        # Average length of 1:1 meeting in last month
+        meeting_lengths = []
+        for meeting in meetings_in_past_x_days:
+            duration_str = meeting.get("meeting_duration", "0h 0m 0s")
+            total_seconds = duration_to_seconds(duration_str)
+            meeting_lengths.append(total_seconds)
+
+        if len(meeting_lengths) == 0:
+            average_length_minutes = 0
+        else:
+            average_length_minutes = round(sum(meeting_lengths) / len(meeting_lengths) / 60, 2)        
+
+        employees.append({"id": employee.id, 
+                         "first_name": employee.first_name, 
+                         "last_name": employee.last_name,
+                         "num_meetings": num_meetings_in_past_month,
+                         "average_length_minutes": average_length_minutes})
+
+    return jsonify({"current_user": int(current_user.get_id()), "employees": employees}), 200
 
 @admin.route('/api/send_invite', methods=["POST"])
 @jwt_required()
@@ -134,5 +190,95 @@ def verify_token():
     return jsonify({"valid": True, "org_id": org_id}), 200
 
 
+@admin.route('/api/manager/<int:manager_id>', methods=["GET"])
+@jwt_required()
+def get_manager(manager_id):
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+    
+
+    manager = User.query.get(manager_id)
+    org = Organization.query.get(org_id)
+    
+    attendee_info = {"manager_id": manager_id}
+
+    meetings = get_all_manager_meetings(org.name, org_id, attendee_info)
+
+    meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "duration": m["meeting_duration"], "type": m["type_name"], "attendees": m["attendees"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
+
+    return jsonify({"manager": {"id": manager.id, "first_name": manager.first_name, "last_name": manager.last_name}, "meetings": meetings_list}), 200
+
+@admin.route('/api/employee/<int:employee_id>', methods=["GET"])
+@jwt_required()
+def get_employee(employee_id):
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+    
+
+    employee = User.query.get(employee_id)
+    org = Organization.query.get(org_id)
+    
+    attendee_info = {"employee_id": employee_id}
+
+    meetings = get_all_employee_meetings(org.name, org_id, attendee_info)
+
+    meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "duration": m["meeting_duration"], "type": m["type_name"], "attendees": m["attendees"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
+
+    return jsonify({"employee": {"id": employee.id, "first_name": employee.first_name, "last_name": employee.last_name}, "meetings": meetings_list}), 200
 
 
+@admin.route('/api/manager/oneonones/<int:manager_id>', methods=["GET"])
+@jwt_required()
+def get_manager_oneonones(manager_id):
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    manager = User.query.get(manager_id)
+    org = Organization.query.get(org_id)
+    
+    attendee_info = {"manager_id": manager_id}
+
+    meetings = get_one_on_ones(org.name, org_id, attendee_info)
+
+    meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "duration": m["meeting_duration"], "type": m["type_name"], "attendees": m["attendees"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
+
+    return jsonify({"manager": {"id": manager.id, "first_name": manager.first_name, "last_name": manager.last_name}, "meetings": meetings_list}), 200

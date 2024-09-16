@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timedelta
 from pytz import timezone
 from dotenv import load_dotenv
+from bson import ObjectId
 
 load_dotenv()
 
@@ -98,8 +99,67 @@ def get_oneonone_meetings(meeting_type, org_name, org_id, attendee_info, collect
 
     return results
 
+def get_all_manager_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
+
+    manager_id = attendee_info["manager_id"]
+
+    database = client[org_name]
+    collection = database[collection_name]
+    
+    results = collection.find({
+        "org_id": org_id,
+        "attendees": {
+            "$elemMatch": {
+                "user_id": manager_id,
+                "role": "Manager"
+            }
+        }
+    })
+
+    return results
+
+def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
+
+    employee_id = attendee_info["employee_id"]
+
+    database = client[org_name]
+    collection = database[collection_name]
+
+    results = collection.find({
+        "org_id": org_id,
+        "attendees": {
+            "$elemMatch": {
+                "user_id": employee_id,
+                "role": "Report"
+            }
+        }
+    })
+
+    return results
+
+
+def get_one_on_ones(org_name, org_id, attendee_info, collection_name="Meetings"):
+
+    manager_id = attendee_info["manager_id"]
+
+    database = client[org_name]
+    collection = database[collection_name]
+
+    results = collection.find({
+        "type_name": "One-on-One",
+        "org_id": org_id,
+        "attendees": {
+            "$all": [
+                {"$elemMatch": {"user_id": manager_id}},
+                {"$elemMatch": {"role": "Manager"}}
+            ]
+        }
+        })
+
+    return results
+
 # Get the number of meetings within the past month for a specific manager 
-def get_meetings_last_month(org_name, org_id, manager_id, days=30, collection_name="Meetings"):
+def get_meetings_last_month(org_name, org_id, id, role="Manager", days=30, collection_name="Meetings"):
 
     database = client[org_name]
     collection = database[collection_name]
@@ -114,14 +174,32 @@ def get_meetings_last_month(org_name, org_id, manager_id, days=30, collection_na
         "org_id": org_id,
         "attendees": {
             "$elemMatch": {
-                "user_id": manager_id,
-                "role": "Manager"
+                "user_id": id,
+                "role": role
             }
         },
         "date": {"$gte": one_month_ago}
     })
 
     return list(results)
+
+
+def get_meeting_by_id(org_name, org_id, meeting_id, collection_name="Meetings"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    try:
+        # Convert meeting_id to ObjectId
+        meeting_object_id = ObjectId(meeting_id)
+    except Exception as e:
+        raise ValueError(f"Invalid meeting ID format: {e}")
+
+    result = collection.find_one({
+        "org_id": org_id,
+        "_id": meeting_object_id
+    })
+
+    return result
 
 # Helper function to convert meeting duration from "Xh Xm Xs" to total seconds
 def duration_to_seconds(duration_str):
@@ -133,14 +211,8 @@ def duration_to_seconds(duration_str):
 
 if __name__ == "__main__":
 
-    results = get_meetings_last_month("BlenderProducts", 1, 154)
-    meeting_lengths = []
-    for meeting in results:
-        duration_str = meeting.get("meeting_duration", "0h 0m 0s")
-        total_seconds = duration_to_seconds(duration_str)
-        meeting_lengths.append(total_seconds)
+    results = get_meeting_by_id("BlenderProducts", 1, "66e19d97d24daae28c494b53")
 
 
-    average_length_minutes = sum(meeting_lengths) / len(meeting_lengths) / 60
+    print(results)
 
-    print(f"Average meeting length: {average_length_minutes} minutes")
