@@ -8,7 +8,22 @@ from flask_socketio import emit
 from functools import wraps
 import logging
 from botocore.exceptions import ClientError
+from bson import ObjectId
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
+from ..utils.mongo import get_meeting_by_id
+
+
+# Utility function to convert ObjectId to string
+def convert_object_id_to_str(data):
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, ObjectId):
+                data[key] = str(value)
+            elif isinstance(value, dict):
+                data[key] = convert_object_id_to_str(value)
+            elif isinstance(value, list):
+                data[key] = [convert_object_id_to_str(item) for item in value]
+    return data
 
 @main.route('/api/home', methods=["GET", "POST"])
 @jwt_required()
@@ -94,6 +109,11 @@ def add_report():
     first_name = data.get("first_name")
     last_name = data.get("last_name")
     email = data.get("email")
+
+    if first_name == "" or last_name == "" or email == "":
+
+        return jsonify({"error": "Please provide all required fields"}), 400
+    
 
     # Check if the user already exists in the database
     existing_user = User.query.filter_by(first_name=first_name, 
@@ -242,6 +262,34 @@ def view_oneonone_meetings(report_id):
 #             return jsonify({"error": "An unexpected error occurred"}), 500
 #     except Exception as e:
 #         return jsonify({"error": str(e)}), 500
+
+@main.route('/api/meeting/<string:meeting_id>', methods=["GET"])
+@jwt_required()
+def get_meeting(meeting_id):
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+
+    if not org_id or not user_id:
+        print("Please log in to access this page.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    org = Organization.query.get(org_id)
+
+    meeting_info = get_meeting_by_id(org.name, org_id, meeting_id)
+
+    if not meeting_info:
+        return jsonify({"error": "Meeting not found"}), 404
+
+    # Convert any ObjectId instances in the response to strings
+    meeting_info = convert_object_id_to_str(meeting_info)
+
+    return jsonify({"meeting": meeting_info}), 200
+    
     
 
 @main.route('/api/oneonone/<int:report_id>', methods=['GET'])
