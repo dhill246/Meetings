@@ -73,6 +73,8 @@ def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, or
     if meeting_type == "One-on-One":
         manager_info, report_info = attendees_info
 
+        user_id = manager_info["user_id"]
+
         meeting_title = f"{meeting_type} Meeting with {manager_info['first_name']} {manager_info['last_name']} and {report_info['first_name']} {report_info['last_name']} on {date}"
         report = f"{report_info['first_name']}{report_info['last_name']}"
 
@@ -114,7 +116,7 @@ def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, or
                 raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
                 # summarize_meeting(raw_text_path, output_file, username)
                 print("Arguments for summarizing meeting: ", raw_text_path, output_file, username, org_name, org_id, meeting_type)
-                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, attendees_info, meeting_duration)
+                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, user_id, attendees_info, meeting_duration)
                 logger.info(f"Successfully summarized: {raw_text_path}.")
 
                 summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)
@@ -153,6 +155,8 @@ def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, or
     else:
 
         manager_info = attendees_info[0]
+
+        user_id = manager_info["user_id"]
 
         meeting_title = f"{meeting_type} hosted by {manager_info['first_name']} {manager_info['last_name']} on {date}"
         report = meeting_type
@@ -195,7 +199,7 @@ def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, or
                 raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
                 # summarize_meeting(raw_text_path, output_file, username)
                 print("Arguments for summarizing meeting: ", raw_text_path, output_file, username, org_name, org_id, meeting_type)
-                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, attendees_info, meeting_duration)
+                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, user_id, attendees_info, meeting_duration)
                 logger.info(f"Successfully summarized: {raw_text_path}.")
 
                 summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)

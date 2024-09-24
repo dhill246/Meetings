@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from pytz import timezone
 from dotenv import load_dotenv
 from bson import ObjectId
+import logging
 
 load_dotenv()
 
@@ -16,38 +17,53 @@ print(uri)
 client = MongoClient(uri, server_api=ServerApi(version="1", strict=True, deprecation_errors=True))
 
 
-def get_prompts(org_name, org_id, collection_name="MeetingTypes", type_name="One-on-One"):
+def get_prompts(org_name, org_id, type_name, user_id, collection_name="MeetingTypes"):
 
-    type_name = "One-on-One"
-
-    print(f"Getting prompts for {org_name} with org_id {org_id} and type_name {type_name}")
+    print(f"Getting prompts for {org_name} with org_id {org_id} and type_name {type_name} and user_id {user_id}")
 
     database = client[org_name]
 
-    print(f"Database: {database}")
-
     collection = database[collection_name]
 
-    print(f"Collection: {collection}")
+    try:
+        result = collection.find({"type_name": type_name,
+                                  "scope": "company_wide",
+                               "org_id": org_id}).limit(1)[0]
+                        
+    except Exception as e:
+        result = collection.find({"org_id": org_id}).limit(1)[0]
+        
 
-    # THIS LINE IS THROWING AN ERROR
-    result = collection.find({"type_name": type_name,
+    try:
+
+        result_2 = collection.find({"type_name": type_name,
+                                  "scope": int(user_id),
                                "org_id": org_id}).limit(1)[0]
     
-    
-    print(f"Result: {result}")
+        
+    except Exception as e:
+        result_2 = {"personal_prompts": {}}
 
+        print (f"Error: {e}")
+
+    
     prompts = result["default_prompts"]
 
-    print(f"Prompts: {prompts}")
+    prompts_2 = result_2["personal_prompts"]
+
+
+    combined_prompt = prompts.copy()  # Make a copy to avoid modifying the original dict1
+    combined_prompt.update(prompts_2)
+
+    print(f"combined: {combined_prompt}")
 
     system_prompt = ""
 
     response_format = "Do not include any explanations, provide a RFC8259 compliant JSON response following this exact format:\n"
 
-    for category in prompts:
+    for category in combined_prompt:
 
-        description = prompts[category]
+        description = combined_prompt[category]
         if category == "Initial Context":
             system_prompt += description + "\n"
         else:
@@ -59,7 +75,8 @@ def get_prompts(org_name, org_id, collection_name="MeetingTypes", type_name="One
 
     return system_prompt, response_format
 
-def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_duration, collection_name="Meeting"):
+def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_duration, type_name, collection_name="Meeting"):
+    logging.info(f"Adding meeting to {org_name} with org_id {org_id} and type_name {type_name}")
 
     database = client[org_name]
     collection = database[collection_name]
@@ -69,7 +86,7 @@ def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_dur
     local_datetime = pacific.localize(utc_datetime)
 
     collection.insert_one({
-        "type_name": "One-on-One",
+        "type_name": type_name,
         "org_id": org_id,
         "meeting_duration": meeting_duration,
         "attendees": attendees,
@@ -112,6 +129,25 @@ def get_all_manager_meetings(org_name, org_id, attendee_info, collection_name="M
             "$elemMatch": {
                 "user_id": manager_id,
                 "role": "Manager"
+            }
+        }
+    })
+
+    return results
+
+def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
+
+    employee_id = attendee_info["employee_id"]
+
+    database = client[org_name]
+    collection = database[collection_name]
+    
+    results = collection.find({
+        "org_id": org_id,
+        "attendees": {
+            "$elemMatch": {
+                "user_id": employee_id,
+                "role": "Report"
             }
         }
     })
@@ -201,6 +237,42 @@ def get_meeting_by_id(org_name, org_id, meeting_id, collection_name="Meetings"):
 
     return result
 
+
+def fetch_prompts(org_name, org_id, role, scope, collection_name="MeetingTypes"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    if role == "admin":
+
+        result = collection.find({
+            "org_id": org_id,
+            "scope": scope,
+            "access_level": role
+        })
+
+        return list(result)
+    
+def update_prompts(org_name, org_id, role, prompt_id, updated_data, scope, collection_name="MeetingTypes"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    query_filter = {
+        "org_id": org_id,
+        "_id": ObjectId(prompt_id),
+        "scope": scope
+    }
+
+    update_operation = {
+        "$set": updated_data
+    }
+
+    if role == "admin":
+
+        result = collection.update_one(query_filter, update_operation)
+
+        return result
+
+
 # Helper function to convert meeting duration from "Xh Xm Xs" to total seconds
 def duration_to_seconds(duration_str):
     parts = duration_str.split()
@@ -209,10 +281,135 @@ def duration_to_seconds(duration_str):
     seconds = int(parts[2].replace("s", ""))
     return hours * 3600 + minutes * 60 + seconds
 
+def fetch_meeting_types(org_name, org_id, scope, collection_name="MeetingTypes"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    result = collection.find({
+            "org_id": org_id,
+            "$or": [
+                {"scope": "company_wide"},
+                {"scope": scope}
+            ]
+        })
+    
+    return [result["type_name"] for result in result]
+
+def get_general_meetings(meeting_type, org_name, org_id, attendee_info, collection_name="Meetings"):
+
+    database = client[org_name]
+    collection = database[collection_name]
+
+    results = collection.find({
+        "type_name": meeting_type,
+        "org_id": org_id,
+        # "attendees": {
+        #     "$elemMatch": attendee_info
+        # }
+    })
+
+    return results
+
+def add_new_meeting_type(org_name, org_id, role, meeting_type_data, scope="company_wide", collection_name="MeetingTypes"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    print(meeting_type_data)
+
+    # Check if a meeting type with the same name already exists
+    existing_meeting_type = collection.find_one({
+        "org_id": org_id,
+        "type_name": meeting_type_data.get("type_name"),
+        "scope": scope
+    })
+
+    if existing_meeting_type:
+        query_filter = {
+            "org_id": org_id,
+            "type_name": meeting_type_data.get("type_name"),
+            "scope": scope
+        }
+
+        update_operation = {
+            "$set": meeting_type_data
+        }
+
+        result = collection.update_one(query_filter, update_operation)
+        return {"updated": True, "result": result}
+
+    meeting_type_data["org_id"] = org_id
+    meeting_type_data["scope"] = scope
+    meeting_type_data["access_level"] = role
+    result = collection.insert_one(meeting_type_data)
+
+    return result
+
+
+def fetch_personal_prompts(org_name, org_id, role, collection_name="MeetingTypes", scope="personal"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    result = collection.find({
+            "org_id": org_id,
+            "scope": scope,
+            "$or": [
+                {"access_level": "manager"},
+                {"access_level": role}
+            ]
+        })
+    
+    return list(result)
+
+
+def delete_prompts(org_name, org_id, role, prompt_id, scope, collection_name="MeetingTypes"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    query_filter = {
+        "org_id": org_id,
+        "_id": ObjectId(prompt_id),
+        "scope": scope
+    }
+
+    if role == "admin":
+
+        result = collection.delete_one(query_filter)
+
+        return result
+    
+
+def get_meeting_data(org_name, org_id, meeting_id, collection_name="Meetings"):
+
+    database = client[org_name]
+    collection = database[collection_name]
+
+    result = collection.find_one({
+        "org_id": org_id, 
+        "_id": ObjectId(meeting_id)
+    })
+
+    return result
+
+def get_all_one_on_ones(org_name, org_id, report_id, collection_name="Meetings"):
+
+    database = client[org_name]
+    collection = database[collection_name]
+
+    result = collection.find({
+        "org_id": org_id,
+        "type_name": "One-on-One", 
+        "attendees": {
+            "$elemMatch": {
+                "role": "Report",
+                "user_id": report_id
+            }}
+    })
+
+    return list(result)
+    
+
 if __name__ == "__main__":
 
-    results = get_meeting_by_id("BlenderProducts", 1, "66e19d97d24daae28c494b53")
+    gen = get_general_meetings("General Meeting", "BlenderProducts", 1, {})
 
-
-    print(results)
-
+    print(list(gen))

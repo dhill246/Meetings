@@ -4,8 +4,9 @@ import subprocess
 import os
 from pathlib import Path
 import time
-from app.utils.mongo import get_prompts, add_meeting
+from app.utils.mongo import get_prompts, add_meeting, get_meeting_data, get_all_one_on_ones, get_all_manager_meetings, get_general_meetings, get_all_employee_meetings
 import json
+from urllib.parse import urlparse
 load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
@@ -108,7 +109,7 @@ def summarize_meeting(input_file, output_file, username):
         file.write(transcribed_text)
 
 
-def summarize_meeting_improved(input_file, output_file, username, org_name, org_id, type_name, attendees, meeting_duration):
+def summarize_meeting_improved(input_file, output_file, username, org_name, org_id, type_name, user_id, attendees, meeting_duration):
 
     with open(input_file, 'r', encoding="utf-8") as file:
         # Read the entire content of the file
@@ -116,7 +117,8 @@ def summarize_meeting_improved(input_file, output_file, username, org_name, org_
 
     system_prompt, response_format = get_prompts(org_name=org_name,
                                                  org_id=org_id,
-                                                 type_name=type_name)
+                                                 type_name=type_name,
+                                                 user_id=user_id)
     model = "gpt-4o"
     temperature = 0
 
@@ -148,14 +150,107 @@ def summarize_meeting_improved(input_file, output_file, username, org_name, org_
         file.write(transcribed_text)
 
     document = json.loads(transcribed_text)
-    add_meeting(org_name, org_id, content, document, attendees, meeting_duration, collection_name="Meetings")
+    add_meeting(org_name, org_id, content, document, attendees, meeting_duration, type_name, collection_name="Meetings")
 
     return document
 
-# if __name__ == "__main__":
-#     json_data = summarize_meeting_improved(input_file="tmp_Daniel Hill\joined_text\Daniel Hill_OliviaSmith_09-02-2024.txt", 
-#                                            output_file="Daniel Hill_OliviaSmith_09-02-2024.txt",
-#                                            username="Daniel Hill",
-#                                            org_name="BlenderProducts",
-#                                            org_id=1,
-#                                            type_name="One-on-One")
+
+def generate_ai_reply(messages, page_url, user_id, org_name, org_id):
+
+    content = "Please help the user answer whatever question they ask using the following data. Answer the question thouroughly, but in as few sentences as possible. No bullet points or lists."
+
+    # Parse the URL
+    parsed_url = urlparse(page_url)
+    url_parts = parsed_url.path.strip("/").split("/")
+
+    if url_parts[0] == "home":
+        if url_parts[1] == "view_meeting":
+            meeting_id = url_parts[2]
+
+            meeting_data = get_meeting_data(org_name, org_id, meeting_id)
+
+            summary = str(meeting_data['summary'])
+            text = str(meeting_data['raw_text'])
+
+            content += summary + " " + text
+
+        if url_parts[1] == "meetings":
+
+            if url_parts[2] == "oneonone":
+                report_id = int(url_parts[3])
+
+                report_data = list(get_all_one_on_ones(org_name, org_id, report_id))
+
+                content += str(report_data)
+
+            if url_parts[2] == "generalmeetings":
+
+                meeting_type = url_parts[3]
+                meeting_type = meeting_type.replace("_", " ")
+
+                attendee_info = {"user_id": user_id}
+
+                general_meeting_data = list(get_general_meetings(meeting_type, org_name, org_id, attendee_info))
+
+
+                print(general_meeting_data)
+                content += str(general_meeting_data)
+
+    elif url_parts[0] == "admin":
+        if url_parts[1] == "reports":
+            report_id = url_parts[2]
+
+            report_data = list(get_all_one_on_ones(org_name, org_id, report_id))
+
+            content += str(report_data)
+
+        elif url_parts[1] == "oneonones":
+            manager_id = int(url_parts[2])
+
+            attendee_info = {"manager_id": manager_id}
+
+            report_data = list(get_all_manager_meetings(org_name, org_id, attendee_info))
+
+            content += str(report_data)
+
+        elif url_parts[1] == "employee":
+            employee_id = int(url_parts[2])
+
+            attendee_info = {"employee_id": employee_id}
+
+            report_data = list(get_all_employee_meetings(org_name, org_id, attendee_info))
+
+            content += str(report_data)
+
+        else:
+            manager_id = int(url_parts[1])
+
+            attendee_info = {"manager_id": manager_id}
+
+            report_data = list(get_all_manager_meetings(org_name, org_id, attendee_info))
+
+            content += str(report_data)
+
+
+
+    ai_messages = [
+        {"role": "system", "content": content},
+    ]
+
+    for msg in messages:
+        role = "user" if msg['sender'] == 'user' else "assistant"
+        ai_messages.append({"role": role, "content": msg['text']})
+
+    model = "gpt-4o"
+    temperature = 0
+
+    response = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        messages=ai_messages
+    )
+
+    ai_assistance, prompt_tokens, completion_tokens = [response.choices[0].message.content, response.usage.prompt_tokens, response.usage.completion_tokens]
+
+    return ai_assistance
+

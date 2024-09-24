@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime
 import logging
 from bson import ObjectId
-from ..utils.mongo import get_all_manager_meetings, get_one_on_ones, get_all_employee_meetings, get_meeting_by_id
+from ..utils.mongo import get_all_manager_meetings, get_one_on_ones, get_all_employee_meetings, fetch_prompts, update_prompts, add_new_meeting_type, delete_prompts
 
 @admin.route('/api/get_managers', methods=["GET"])
 @jwt_required()
@@ -282,3 +282,156 @@ def get_manager_oneonones(manager_id):
     meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "duration": m["meeting_duration"], "type": m["type_name"], "attendees": m["attendees"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
 
     return jsonify({"manager": {"id": manager.id, "first_name": manager.first_name, "last_name": manager.last_name}, "meetings": meetings_list}), 200
+
+@admin.route('/api/fetch_prompts_admin', methods=["GET"])
+@jwt_required()
+def fetch_prompts_admin():
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    org = Organization.query.get(org_id)
+
+    print("Arguments: ", org.name, org_id, role)
+    prompts = fetch_prompts(org.name, org_id, role, scope="company_wide")
+
+    if prompts == None:
+        return jsonify({"error": "No prompts found"}), 404
+    else:
+        prompts_list = [{"prompt_id": str(m["_id"]), "default_prompts": m["default_prompts"], "type": m["type_name"], "description": m["description"]} for m in prompts]
+
+
+        return jsonify({"prompts": prompts_list}), 200
+    
+@admin.route('/api/update_prompt_admin/<prompt_id>', methods=["POST"])
+@jwt_required()
+def update_prompt(prompt_id):
+
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    org = Organization.query.get(org_id)
+
+    # Retrieve JSON data from the request
+    updated_data = request.json
+    print("updated_data:", updated_data)
+
+    update_prompts(org.name, org_id, role, prompt_id, updated_data, scope="company_wide")
+
+    return jsonify({"message": "Prompt updated successfully"}), 200
+
+@admin.route('/api/add_meeting_type_admin', methods=["POST"])
+@jwt_required()
+def add_meeting_type_admin():
+    # Extract JWT claims
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub'].get('org_id')
+    user_id = claims['sub'].get('user_id')
+    role = claims['sub'].get('role')
+
+    # Check for valid org_id and user_id
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+
+    # Check if the user has admin privileges
+    if role != "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+
+    # Retrieve the current user
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Retrieve the organization
+    org = Organization.query.get(org_id)
+    if not org:
+        return jsonify({"error": "Organization not found"}), 404
+
+    # Retrieve JSON data from the request
+    new_meeting_type_data = request.json
+    print("new_meeting_type_data:", new_meeting_type_data)
+
+    # Validate the input data
+    required_fields = ["type_name", "description", "default_prompts"]
+    for field in required_fields:
+        if field not in new_meeting_type_data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+
+    # You might want to add more validation here (e.g., check data types, lengths)
+
+    # Call the function to add the new meeting type
+    try:
+        add_new_meeting_type(
+            org_name=org.name,
+            org_id=org_id,
+            role=role,
+            meeting_type_data=new_meeting_type_data,
+            scope="company_wide"
+        )
+    except Exception as e:
+        print(f"Error adding new meeting type: {e}")
+        return jsonify({"error": "Failed to add new meeting type"}), 500
+
+    return jsonify({"message": "Meeting type added successfully"}), 200
+
+
+@admin.route('/api/delete_prompt_admin/<prompt_id>', methods=["GET"])
+@jwt_required()
+def delete_prompt(prompt_id):
+
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    org = Organization.query.get(org_id)
+
+    print("Deleting prompt with arguments: ", org.name, org_id, role, prompt_id)
+
+    delete_prompts(org.name, org_id, role, prompt_id, scope="company_wide")
+
+    return jsonify({"message": "Prompt updated successfully"}), 200
+
+
+
+
+
+
+
