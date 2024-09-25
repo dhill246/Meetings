@@ -303,9 +303,9 @@ def get_general_meetings(meeting_type, org_name, org_id, attendee_info, collecti
     results = collection.find({
         "type_name": meeting_type,
         "org_id": org_id,
-        # "attendees": {
-        #     "$elemMatch": attendee_info
-        # }
+        "attendees": {
+            "$elemMatch": attendee_info
+        }
     })
 
     return results
