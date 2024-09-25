@@ -216,8 +216,11 @@ def view_oneonone_meetings(report_id):
 
     meetings = get_oneonone_meetings("One-on-One", org.name, org_id, attendee_info)
 
-    meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
-
+    meetings_list = [{"meeting_id": str(m["_id"]), 
+                    "date": m["date"], 
+                    "summary": m["summary"].get("Meeting Summary") or m["summary"].get("Meeting summary")} 
+                    for m in meetings]
+    
     return jsonify({"report": {"id": report.id, "first_name": report.first_name, "last_name": report.last_name}, "meetings": meetings_list}), 200
 
 # @main.route('/api/meeting/<int:meeting_id>', methods=['GET'])
@@ -466,8 +469,11 @@ def view_general_meetings(meeting_type):
     
     meetings = get_general_meetings(meeting_type, org.name, org_id, attendee_info)
 
-    meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
-
+    meetings_list = [{"meeting_id": str(m["_id"]), 
+                    "date": m["date"], 
+                    "summary": m["summary"].get("Meeting Summary") or m["summary"].get("Meeting summary")} 
+                    for m in meetings]
+    
     print(meetings_list)
     return jsonify({"meetings": meetings_list}), 200
 
