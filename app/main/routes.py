@@ -558,10 +558,6 @@ def add_meeting_type_manager():
         print("Please log in to access this route.")
         return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
 
-    # Check if the user has admin privileges
-    if role != "admin":
-        return jsonify({"msg": "Admins only!"}), 403
-
     # Retrieve the current user
     current_user = User.query.get(user_id)
     if not current_user:

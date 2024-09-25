@@ -242,15 +242,13 @@ def fetch_prompts(org_name, org_id, role, scope, collection_name="MeetingTypes")
     database = client[org_name]
     collection = database[collection_name]
 
-    if role == "admin":
+    result = collection.find({
+        "org_id": org_id,
+        "scope": scope,
+        "access_level": "admin"
+    })
 
-        result = collection.find({
-            "org_id": org_id,
-            "scope": scope,
-            "access_level": role
-        })
-
-        return list(result)
+    return list(result)
     
 def update_prompts(org_name, org_id, role, prompt_id, updated_data, scope, collection_name="MeetingTypes"):
     database = client[org_name]
@@ -370,12 +368,10 @@ def delete_prompts(org_name, org_id, role, prompt_id, scope, collection_name="Me
         "_id": ObjectId(prompt_id),
         "scope": scope
     }
+    
+    result = collection.delete_one(query_filter)
 
-    if role == "admin":
-
-        result = collection.delete_one(query_filter)
-
-        return result
+    return result
     
 
 def get_meeting_data(org_name, org_id, meeting_id, collection_name="Meetings"):
@@ -410,6 +406,6 @@ def get_all_one_on_ones(org_name, org_id, report_id, collection_name="Meetings")
 
 if __name__ == "__main__":
 
-    gen = get_general_meetings("General Meeting", "BlenderProducts", 1, {})
+   prompts = fetch_prompts("BlenderProducts", 1, "Admin", scope=203)
 
-    print(list(gen))
+   print(prompts)
