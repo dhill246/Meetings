@@ -6,9 +6,10 @@ from ..utils.mongo import get_meetings_last_month, duration_to_seconds
 from ..utils.Emails import send_invite_email
 import secrets
 from datetime import datetime
+from ..utils.openAI import generate_ai_reply_for_meeting
 import logging
 from bson import ObjectId
-from ..utils.mongo import get_all_manager_meetings, get_one_on_ones, get_all_employee_meetings, fetch_prompts, update_prompts, add_new_meeting_type, delete_prompts
+from ..utils.mongo import get_all_manager_meetings, get_one_on_ones, get_all_employee_meetings, fetch_prompts, update_prompts, add_new_meeting_type, delete_prompts, get_recent_meetings
 
 @admin.route('/api/get_managers', methods=["GET"])
 @jwt_required()
@@ -40,6 +41,9 @@ def get_managers():
     managers = []
 
     for manager in managers_list_db:
+
+        if manager.id == 167:
+            continue
 
         meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, manager.id, role="Manager", days=30)
 
@@ -96,6 +100,9 @@ def get_employees():
     employees = []
 
     for employee in employees_list:
+
+        if employee.id == 167 or employee.id == 172:
+            continue
 
         meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, employee.id, role="Report", days=30)
 
@@ -305,7 +312,7 @@ def fetch_prompts_admin():
     org = Organization.query.get(org_id)
 
     print("Arguments: ", org.name, org_id, role)
-    prompts = fetch_prompts(org.name, org_id, role, scope="company_wide")
+    prompts = fetch_prompts(org.name, org_id, scope="company_wide")
 
     if prompts == None:
         return jsonify({"error": "No prompts found"}), 404
@@ -430,8 +437,114 @@ def delete_prompt(prompt_id):
     return jsonify({"message": "Prompt updated successfully"}), 200
 
 
+@admin.route('/api/prompts/<manager_id>', methods=["GET"])
+@jwt_required()
+def retreive_manager_prompts(manager_id):
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
 
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
 
+    org = Organization.query.get(org_id)
 
+    prompts = fetch_prompts(org.name, org_id, int(manager_id))
+
+    print("Prompts: ", prompts)
+
+    manager = User.query.get(manager_id)
+
+    if prompts == []:
+        return jsonify({
+            "prompts": [],
+            "message": f"{manager.first_name} hasn't added any custom meeting types yet."
+        }), 200    
+    
+    prompts_list = [{"prompt_id": str(m["_id"]), "personal_prompts": m["personal_prompts"], "type": m["type_name"]} for m in prompts]
+
+    return jsonify({"prompts": prompts_list}), 200
+
+@admin.route('/api/ten_most_recent_meetings', methods=["GET"])
+def get_most_recent_meetings():
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    org = Organization.query.get(org_id)
+
+    meetings = get_recent_meetings(org.name, org_id, "One-on-One", 10)
+
+    meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "duration": m["meeting_duration"], "type": m["type_name"], "attendees": m["attendees"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
+
+    return jsonify({"meetings": meetings_list}), 200
+
+@admin.route('/api/test_prompt_chat', methods=['POST'])
+@jwt_required()
+def test_prompt_chat():
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+    
+    if not role == "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    org = Organization.query.get(org_id)
+
+    org_name = org.name
+
+    # Get the JSON data from the request
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    prompt = data.get('prompt')
+    meeting = data.get('meeting')
+    page_url = data.get('pageUrl')
+    
+    if not meeting or not page_url:
+        return jsonify({"error": "Missing 'messages' or 'pageUrl' in request"}), 400
+
+    meeting_id = meeting.get("meeting_id")
+    print(meeting_id)
+    # Process the messages and page URL
+    try:
+        reply = str(generate_ai_reply_for_meeting(prompt, meeting_id, user_id, org_name, org_id=org_id))
+
+    except Exception as e:
+        print(f"Error generating AI reply: {e}")
+        return jsonify({"error": "Failed to generate AI reply"}), 500
+
+    return jsonify({"reply": reply}), 200
 
 

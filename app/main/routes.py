@@ -535,7 +535,7 @@ def fetch_company_meeting_types():
     org = Organization.query.get(org_id)
 
     print("Arguments: ", org.name, org_id, role)
-    prompts = fetch_prompts(org.name, org_id, role, scope="company_wide")
+    prompts = fetch_prompts(org.name, org_id, scope="company_wide")
 
     if prompts == None:
         return jsonify({"error": "No prompts found"}), 404
@@ -719,7 +719,7 @@ def fetch_prompt_addons():
     org = Organization.query.get(org_id)
 
     print("ARGS: ", org.name, org_id, user_id)
-    prompts = fetch_prompts(org.name, org_id, role, scope=user_id)
+    prompts = fetch_prompts(org.name, org_id, scope=user_id)
 
     if prompts == None:
         return jsonify({"error": "No prompts found"}), 404
