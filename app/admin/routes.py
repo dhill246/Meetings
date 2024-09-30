@@ -42,7 +42,7 @@ def get_managers():
 
     for manager in managers_list_db:
 
-        if manager.id == 167:
+        if manager.id == 167 or manager.id == 229:
             continue
 
         meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, manager.id, role="Manager", days=30)
@@ -531,7 +531,7 @@ def test_prompt_chat():
     prompt = data.get('prompt')
     meeting = data.get('meeting')
     page_url = data.get('pageUrl')
-    
+
     if not meeting or not page_url:
         return jsonify({"error": "Missing 'messages' or 'pageUrl' in request"}), 400
 
