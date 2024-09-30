@@ -4,7 +4,7 @@ import subprocess
 import os
 from pathlib import Path
 import time
-from app.utils.mongo import get_prompts, add_meeting, get_meeting_data, get_all_one_on_ones, get_all_manager_meetings, get_general_meetings, get_all_employee_meetings
+from app.utils.mongo import get_prompts, add_meeting, get_meeting_data, get_all_one_on_ones, get_all_manager_meetings, get_general_meetings, get_all_employee_meetings, get_company_meetings
 import json
 from urllib.parse import urlparse
 load_dotenv()
@@ -157,7 +157,7 @@ def summarize_meeting_improved(input_file, output_file, username, org_name, org_
 
 def generate_ai_reply(messages, page_url, user_id, org_name, org_id):
 
-    content = "Please help the user answer whatever question they ask using the following data. Answer the question thouroughly, but in as few sentences as possible. No bullet points or lists."
+    content = "Please help the user answer the question they ask using the following data. Answer the question thouroughly, but in as few sentences as possible. No bullet points or lists."
 
     # Parse the URL
     parsed_url = urlparse(page_url)
@@ -170,7 +170,11 @@ def generate_ai_reply(messages, page_url, user_id, org_name, org_id):
             meeting_data = get_meeting_data(org_name, org_id, meeting_id)
 
             summary = str(meeting_data['summary'])
-            text = str(meeting_data['raw_text'])
+
+            try:
+                text = str(meeting_data['raw_text'])
+            except Exception as e:
+                text = ""
 
             content += summary + " " + text
 
@@ -222,6 +226,25 @@ def generate_ai_reply(messages, page_url, user_id, org_name, org_id):
 
             content += str(report_data)
 
+        elif url_parts[1] == "specific_meeting":
+            meeting_id = url_parts[2]
+
+            meeting_data = get_meeting_data(org_name, org_id, meeting_id)
+
+            summary = str(meeting_data['summary'])
+
+            try:
+                text = str(meeting_data['raw_text'])
+            except Exception as e:
+                text = ""
+
+            content += summary + " " + text
+
+        elif url_parts[1] == "dashboard":
+            whole_company = list(get_company_meetings(org_name, org_id))
+
+            content += str(whole_company)
+
         else:
             manager_id = int(url_parts[1])
 
@@ -254,3 +277,29 @@ def generate_ai_reply(messages, page_url, user_id, org_name, org_id):
 
     return ai_assistance
 
+def generate_ai_reply_for_meeting(prompt, meeting_id, user_id, org_name, org_id):
+
+    content = "The user will ask a question about a given meeting. Please provide a 2-3 sentence response to the user's question."
+
+    meeting_data = get_meeting_data(org_name, org_id, meeting_id)
+
+    content += " " + str(meeting_data['raw_text'])
+
+    content += " " + str(prompt)
+
+    ai_messages = [
+        {"role": "system", "content": content},
+    ]
+
+    model = "gpt-4o"
+    temperature = 0
+
+    response = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        messages=ai_messages
+    )
+
+    ai_assistance, prompt_tokens, completion_tokens = [response.choices[0].message.content, response.usage.prompt_tokens, response.usage.completion_tokens]
+
+    return ai_assistance

@@ -185,14 +185,26 @@ def get_one_on_ones(org_name, org_id, attendee_info, collection_name="Meetings")
         "type_name": "One-on-One",
         "org_id": org_id,
         "attendees": {
-            "$all": [
-                {"$elemMatch": {"user_id": manager_id}},
-                {"$elemMatch": {"role": "Manager"}}
-            ]
+            "$elemMatch": {
+            "user_id": manager_id,
+            "role": "Manager"
+        }
         }
         })
 
     return results
+
+def get_company_meetings(org_name, org_id, collection_name="Meetings"):
+    
+    database = client[org_name]
+    collection = database[collection_name]
+
+    results = collection.find({
+        "org_id": org_id
+        })
+
+    return results
+
 
 # Get the number of meetings within the past month for a specific manager 
 def get_meetings_last_month(org_name, org_id, id, role="Manager", days=30, collection_name="Meetings"):
@@ -238,14 +250,13 @@ def get_meeting_by_id(org_name, org_id, meeting_id, collection_name="Meetings"):
     return result
 
 
-def fetch_prompts(org_name, org_id, role, scope, collection_name="MeetingTypes"):
+def fetch_prompts(org_name, org_id, scope, collection_name="MeetingTypes"):
     database = client[org_name]
     collection = database[collection_name]
 
     result = collection.find({
         "org_id": org_id,
         "scope": scope,
-        "access_level": "admin"
     })
 
     return list(result)
@@ -402,10 +413,34 @@ def get_all_one_on_ones(org_name, org_id, report_id, collection_name="Meetings")
     })
 
     return list(result)
+
+def get_recent_meetings(org_name, org_id, meeting_type, limit=10, collection_name="Meetings"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    result = collection.find({
+        "org_id": org_id,
+        "type_name": meeting_type,
+         "raw_text": {"$exists": True}
+    }).sort("date", -1).limit(limit)  # Sort by 'meeting_date' in descending order and limit to 10
+
+    return list(result)
+
+def update_document_with_raw_text(org_name, document_id, raw_text, collection_name="Meetings"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    result = collection.update_one(
+        {"_id": ObjectId(document_id)},  # Use ObjectId to query the _id field
+        {"$set": {"raw_text": raw_text}}  # Update or add the 'raw_text' field
+    )
     
+    if result.matched_count > 0:
+        print(f"Document with id {document_id} was successfully updated.")
+    else:
+        print(f"No document found with id {document_id}.")
+
 
 if __name__ == "__main__":
-
-   prompts = fetch_prompts("BlenderProducts", 1, "Admin", scope=203)
-
-   print(prompts)
+   
+    print("Yo")
