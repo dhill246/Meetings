@@ -66,6 +66,7 @@ def create_app():
     def add_cors_headers(response):
         """Add CORS headers to all responses."""
         response.headers["Access-Control-Allow-Origin"] = TRUSTED_DOMAIN
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, OPTIONS, DELETE"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
     

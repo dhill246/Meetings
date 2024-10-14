@@ -132,7 +132,54 @@ def register_events(socketio):
 
             # Start celery worker
             try:
-                do_file_conversions.delay(attendees_info, "One-on-One", duration, date, org_name=org_name, org_id=org_id)
+                do_file_conversions.delay(attendees_info, "One-on-One", "One-on-One", duration, date, org_name=org_name, org_id=org_id)
+                
+                logger.info("Celery task do_file_conversions started successfully.")
+            except Exception as e:
+                logger.error(f"Failed to start Celery task do_file_conversions: {e}")
+
+
+    @socketio.on('audio_end_othermeeting')
+    def handle_gen_audio_end(data):
+        # with audio_end_lock:
+        if True:
+            print("Audio end socket message received.")
+            print("\n")
+            print(data)
+            print("\n")
+
+            user_id = data["user_id"]
+            meeting_type = data["meeting_type"]
+            date = data['date']
+            meeting_name = data["meeting_type"]
+            duration = data["duration"]
+
+
+            # Query the database for emails associated with the given user_id and report_id
+            user = User.query.filter_by(id=user_id).first()
+
+            org_id = user.organization_id
+
+            org = Organization.query.filter_by(id=org_id).first()
+
+            org_name = org.name
+
+            emails = []
+
+            attendees_info = [
+                {"first_name": user.first_name, 
+                 "last_name": user.last_name, 
+                 "email": user.email,
+                 "user_id": user.id,
+                 "role": "Manager"},
+            ]
+
+            if user:
+                emails.append(user.email)  # Assuming the Users model has an 'email' field
+
+            # Start celery worker
+            try:
+                do_file_conversions.delay(attendees_info, meeting_type, meeting_name, duration, date, org_name=org_name, org_id=org_id)
                 
                 logger.info("Celery task do_file_conversions started successfully.")
             except Exception as e:
@@ -150,6 +197,7 @@ def register_events(socketio):
 
             user_id = data["user_id"]
             meeting_type = data["meeting_type"]
+            meeting_name = data["meeting_name"]
             date = data['date']
             duration = data["duration"]
 
@@ -178,7 +226,7 @@ def register_events(socketio):
 
             # Start celery worker
             try:
-                do_file_conversions.delay(attendees_info, meeting_type, duration, date, org_name=org_name, org_id=org_id)
+                do_file_conversions.delay(attendees_info, meeting_type, meeting_name, duration, date, org_name=org_name, org_id=org_id)
                 
                 logger.info("Celery task do_file_conversions started successfully.")
             except Exception as e:

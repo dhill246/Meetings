@@ -66,7 +66,16 @@ def dummy_task():
     logger.info("Dummy task executed.")
 
 @app.task
-def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, org_name, org_id):
+def do_file_conversions(attendees_info, meeting_type, meeting_name, meeting_duration, date, org_name, org_id):
+
+    logger.info("ARGS:\n")
+    logger.info("Attendees: " + str(attendees_info))
+    logger.info("Meeting Type: " + str(meeting_type))
+    logger.info("Meeting Name: " + str(meeting_name))
+    logger.info("Meeting Duration: " + str(meeting_duration))
+    logger.info("Date: " + str(date))
+    logger.info("Org Name: " + str(org_name))
+    logger.info("Org ID: " + str(org_id))
 
     emails = [person_info["email"] for person_info in attendees_info]
 
@@ -81,6 +90,7 @@ def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, or
         username = f"{manager_info['first_name']} {manager_info['last_name']}"
         
         filepath_to_convert = os.path.join(username, report, date)
+        print("Filepath to convert", filepath_to_convert)
         filepath_to_convert = filepath_to_convert.replace("\\", "_")
         filepath_to_convert = filepath_to_convert.replace("/", "_")
 
@@ -116,7 +126,8 @@ def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, or
                 raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
                 # summarize_meeting(raw_text_path, output_file, username)
                 print("Arguments for summarizing meeting: ", raw_text_path, output_file, username, org_name, org_id, meeting_type)
-                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, user_id, attendees_info, meeting_duration)
+                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, meeting_name, user_id, attendees_info, meeting_duration)
+                logger.info(f"JSON DATA: {json_data}")
                 logger.info(f"Successfully summarized: {raw_text_path}.")
 
                 summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)
@@ -199,7 +210,7 @@ def do_file_conversions(attendees_info, meeting_type, meeting_duration, date, or
                 raw_text_path = os.path.join(f"tmp_{username}", "joined_text", output_file)
                 # summarize_meeting(raw_text_path, output_file, username)
                 print("Arguments for summarizing meeting: ", raw_text_path, output_file, username, org_name, org_id, meeting_type)
-                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, user_id, attendees_info, meeting_duration)
+                json_data = summarize_meeting_improved(raw_text_path, output_file, username, org_name, org_id, meeting_type, meeting_name, user_id, attendees_info, meeting_duration)
                 logger.info(f"Successfully summarized: {raw_text_path}.")
 
                 summarized_meeting_path = os.path.join(f"tmp_{username}", "summarized_meeting", output_file)
@@ -241,3 +252,39 @@ def worker_shutdown_handler(**kwargs):
     # Add your cleanup code here
     app.control.shutdown()  # Gracefully shutdown Celery
     os._exit(0)  # Force exit to ensure all connections are closed
+
+if __name__ == "__main__":
+    def manually_process_one(manager_firstname,
+                             manager_lastname,
+                             manager_email,
+                             manager_id,
+                            #  report_firstname,
+                            #  report_lastname,
+                            #  report_email,
+                            #  report_id,
+                             duration,
+                             date):
+        
+        # For processing a 1:1
+        attendees_info = [
+                    {"first_name": manager_firstname, 
+                    "last_name": manager_lastname, 
+                    "email": manager_email,
+                    "user_id": manager_id,
+                    "role": "Manager"},
+
+                    # {"first_name": report_firstname,
+                    # "last_name": report_lastname,
+                    # "email": report_email,
+                    # "user_id": report_id,
+                    # "role": "Report"}
+                ]
+        
+        meeting_type = "Daniel's Test Gen Meeting"
+        meeting_name = "Daniel's Test Gen Meeting"
+
+        do_file_conversions(attendees_info, meeting_type, meeting_name, duration, date, "BlenderProducts", 1)
+
+
+
+    manually_process_one("Daniel", "Hill", "danielthill23@gmail.com", 167, " 0h 0m 5s", "10-12-2024")

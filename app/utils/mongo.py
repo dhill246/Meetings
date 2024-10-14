@@ -16,66 +16,49 @@ print(uri)
 # Create a new client and connect to the server
 client = MongoClient(uri, server_api=ServerApi(version="1", strict=True, deprecation_errors=True))
 
-
 def get_prompts(org_name, org_id, type_name, user_id, collection_name="MeetingTypes"):
-
     print(f"Getting prompts for {org_name} with org_id {org_id} and type_name {type_name} and user_id {user_id}")
 
     database = client[org_name]
-
     collection = database[collection_name]
 
-    try:
-        result = collection.find({"type_name": type_name,
-                                  "scope": "company_wide",
-                               "org_id": org_id}).limit(1)[0]
-                        
-    except Exception as e:
-        result = collection.find({"org_id": org_id}).limit(1)[0]
-        
+    result = {"default_prompts": {}}
+    result_2 = {"default_prompts": {}}
 
     try:
+        result = collection.find({"type_name": type_name, "scope": "company_wide", "org_id": org_id}).limit(1)[0]
+    except IndexError:
+        try:
+            result = collection.find({"org_id": org_id}).limit(1)[0]
+        except IndexError:
+            print(f"No results found for org_id {org_id}")
 
-        result_2 = collection.find({"type_name": type_name,
-                                  "scope": int(user_id),
-                               "org_id": org_id}).limit(1)[0]
-    
-        
-    except Exception as e:
-        result_2 = {"personal_prompts": {}}
+    try:
+        result_2 = collection.find({"type_name": type_name, "scope": int(user_id), "org_id": org_id}).limit(1)[0]
+    except IndexError:
+        print(f"No user-specific prompts found for user_id {user_id}")
 
-        print (f"Error: {e}")
+    prompts = result.get("default_prompts", {})
+    prompts_2 = result_2.get("default_prompts", {})
 
-    
-    prompts = result["default_prompts"]
-
-    prompts_2 = result_2["personal_prompts"]
-
-
-    combined_prompt = prompts.copy()  # Make a copy to avoid modifying the original dict1
+    combined_prompt = prompts.copy()
     combined_prompt.update(prompts_2)
 
-    print(f"combined: {combined_prompt}")
+    print(f"Combined Prompts: {combined_prompt}")
 
     system_prompt = ""
+    categories = []  # New list to store categories
 
-    response_format = "Do not include any explanations, provide a RFC8259 compliant JSON response following this exact format:\n"
-
-    for category in combined_prompt:
-
-        description = combined_prompt[category]
+    for category, description in combined_prompt.items():
         if category == "Initial Context":
             system_prompt += description + "\n"
         else:
-            system_prompt += category + ": " + description + "\n"
+            system_prompt += f"{category}: {description}\n"
+            categories.append(category)  # Store the category
 
-            response_format += "{" + category + "} : " + "{your response}" + "\n"
+    return system_prompt, categories
 
-    response_format += "If your response is multiple items, make them into a list, surrounded by square brackets, separated by commas.\n"
-
-    return system_prompt, response_format
-
-def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_duration, type_name, collection_name="Meeting"):
+def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_duration, type_name, meeting_name, collection_name="Meeting"):
     logging.info(f"Adding meeting to {org_name} with org_id {org_id} and type_name {type_name}")
 
     database = client[org_name]
@@ -87,6 +70,7 @@ def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_dur
 
     collection.insert_one({
         "type_name": type_name,
+        "meeting_name": meeting_name,
         "org_id": org_id,
         "meeting_duration": meeting_duration,
         "attendees": attendees,
@@ -440,7 +424,54 @@ def update_document_with_raw_text(org_name, document_id, raw_text, collection_na
     else:
         print(f"No document found with id {document_id}.")
 
+def update_notes(org_name, document_id, notes, collection_name="Meetings"):
+    database = client[org_name]
+    collection = database[collection_name]
+
+    result = collection.update_one(
+        {"_id": ObjectId(document_id)},  # Use ObjectId to query the _id field
+        {"$set": {"summary.Notes": notes}}  # Update or add the 'Notes' field within 'summary'
+    )
+
+    if result.modified_count > 0:
+        print(f"Successfully updated document with id {document_id}.")
+    else:
+        print(f"No document found with id {document_id} or no update needed.")
+
+
+def delete_meeting(org_name, org_id, meeting_id, role, collection_name="Meetings"):
+    """
+    Delete a meeting from the MongoDB collection.
+    
+    :param org_name: Name of the organization (used as the database name)
+    :param org_id: ID of the organization
+    :param meeting_id: ObjectId of the meeting to delete
+    :param role: Role of the user requesting deletion (must be admin)
+    :param collection_name: MongoDB collection name (default is 'Meetings')
+    :return: Deletion result
+    """
+    database = client[org_name]  # Access the organization's database
+    collection = database[collection_name]
+
+    query_filter = {
+        "org_id": org_id,
+        "_id": meeting_id  # Filter by the meeting's ObjectId
+    }
+
+    if role == "admin":
+        # Perform deletion
+        result = collection.delete_one(query_filter)
+        return result
+    else:
+        logging.error("User does not have permission to delete meetings")
+        return None
+
 
 if __name__ == "__main__":
    
-    print("Yo")
+    system_prompt, response_format = get_prompts(org_name="BlenderProducts",
+                                                 org_id=1,
+                                                 type_name="General Meeting",
+                                                 user_id=167)
+    
+    print(system_prompt, response_format)
