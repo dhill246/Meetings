@@ -1,13 +1,31 @@
 from dotenv import load_dotenv
-from openai import OpenAI, OpenAIError
+from openai import OpenAI, OpenAIError, LengthFinishReasonError
 import subprocess
 import os
 from pathlib import Path
 import time
 from app.utils.mongo import get_prompts, add_meeting, get_meeting_data, get_all_one_on_ones, get_all_manager_meetings, get_general_meetings, get_all_employee_meetings, get_company_meetings
 import json
+from pydantic import create_model
+from typing import List
 from urllib.parse import urlparse
 load_dotenv()
+import logging
+
+# Set up logging
+logging.basicConfig(
+    filename="meeting_summary.log",  # Log output to a file
+    level=logging.DEBUG,  # Set the level of logging to DEBUG
+    format="%(asctime)s - %(levelname)s - %(message)s"  # Customize log format
+)
+
+def create_meeting_summary_model(categories):
+    fields = {}
+    for category in categories:
+        # Assuming all fields are strings; adjust the type as necessary
+        fields[category] = (str, ...)
+    MeetingSummary = create_model('MeetingSummary', **fields)
+    return MeetingSummary
 
 API_KEY = os.getenv("API_KEY")
 client = OpenAI(api_key=API_KEY)
@@ -108,51 +126,99 @@ def summarize_meeting(input_file, output_file, username):
     with open(local_file_path, 'w') as file:
         file.write(transcribed_text)
 
+def summarize_meeting_improved(input_file, output_file, username, org_name, org_id, type_name, meeting_name, user_id, attendees, meeting_duration):
+    
+    logging.debug(f"Function called with input_file={input_file}, output_file={output_file}, username={username}, org_name={org_name}, "
+                  f"org_id={org_id}, type_name={type_name}, meeting_name={meeting_name}, user_id={user_id}, attendees={attendees}, "
+                  f"meeting_duration={meeting_duration}")
+    
+    try:
+        with open(input_file, 'r', encoding="utf-8") as file:
+            content = file.read()
+            logging.debug(f"Read content from input file {input_file}")
+    except Exception as e:
+        logging.error(f"Error reading input file {input_file}: {e}")
+        return None
 
-def summarize_meeting_improved(input_file, output_file, username, org_name, org_id, type_name, user_id, attendees, meeting_duration):
+    try:
+        system_prompt, categories = get_prompts(org_name=org_name,
+                                                org_id=org_id,
+                                                type_name=type_name,
+                                                user_id=user_id)
+        logging.debug(f"System prompt and categories generated: {system_prompt}, {categories}")
+    except Exception as e:
+        logging.error(f"Error generating prompts: {e}")
+        return None
 
-    with open(input_file, 'r', encoding="utf-8") as file:
-        # Read the entire content of the file
-        content = file.read()
+    try:
+        MeetingSummary = create_meeting_summary_model(categories)
+        logging.debug(f"MeetingSummary model created with categories: {categories}")
+        
+        # Log detailed structure of the MeetingSummary model
+        meeting_summary_fields = {name: field for name, field in MeetingSummary.__fields__.items()}
+        logging.debug(f"MeetingSummary model structure: {meeting_summary_fields}")
 
-    system_prompt, response_format = get_prompts(org_name=org_name,
-                                                 org_id=org_id,
-                                                 type_name=type_name,
-                                                 user_id=user_id)
-    model = "gpt-4o"
+    except Exception as e:
+        logging.error(f"Error creating MeetingSummary model: {e}")
+        return None
+    
+    model = "gpt-4o-2024-08-06"
     temperature = 0
 
-    response = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {
-                "role": "system",
-                "content": system_prompt + "\n" + response_format
-            },
-            {
-                "role": "user",
-                "content": content
-            }
-        ]
-    )
+    try:
+        logging.debug(f"Calling GPT model with system prompt and content.")
+        response = client.beta.chat.completions.parse(
+            model=model,
+            temperature=temperature,
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ],
+            response_format=MeetingSummary
+        )
+        message = response.choices[0].message
+        logging.debug(f"Response received from GPT model.")
 
-    transcribed_text, prompt_tokens, completion_tokens = [response.choices[0].message.content, response.usage.prompt_tokens, response.usage.completion_tokens]
+        if message.parsed:
+            parsed_response = message.parsed
+            parsed_dict = parsed_response.model_dump()
+            logging.debug(f"Parsed response: {parsed_dict}")
 
-    folder_file_path = os.path.join(f"tmp_{username}", "summarized_meeting")
-    local_file_path = os.path.join(folder_file_path,  output_file)
+            # Proceed to store in database
+            add_meeting(org_name, org_id, content, parsed_dict, attendees, meeting_duration, type_name, meeting_name, collection_name="Meetings")
+            logging.debug("Meeting successfully added to the database.")
 
-    if not os.path.exists(folder_file_path):
-        os.makedirs(folder_file_path)
+            # Write the structured JSON to the file
+            folder_file_path = os.path.join(f"tmp_{username}", "summarized_meeting")
+            local_file_path = os.path.join(folder_file_path, output_file)
 
-    # Write the text to the file
-    with open(local_file_path, 'w') as file:
-        file.write(transcribed_text)
+            if not os.path.exists(folder_file_path):
+                os.makedirs(folder_file_path)
+                logging.debug(f"Created directory {folder_file_path}")
 
-    document = json.loads(transcribed_text)
-    add_meeting(org_name, org_id, content, document, attendees, meeting_duration, type_name, collection_name="Meetings")
+            with open(local_file_path, 'w') as file:
+                file.write(parsed_response.model_dump_json())
+                logging.debug(f"Summarized meeting written to {local_file_path}")
 
-    return document
+            return parsed_dict
+
+        elif message.refusal:
+            logging.warning("Model refused to provide a response.")
+            return None
+
+    except LengthFinishReasonError:
+        logging.error("Response was cut off due to max tokens. Consider increasing 'max_tokens'.")
+        return None
+    except Exception as e:
+        logging.error(f"An error occurred during the GPT request or response handling: {e}")
+        return None
+
 
 
 def generate_ai_reply(messages, page_url, user_id, org_name, org_id):

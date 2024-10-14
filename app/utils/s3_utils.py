@@ -22,7 +22,6 @@ def read_text_file(file_key):
 
     return file_content
 
-
 def list_files(bucket_name, prefix):
     """List files in an S3 bucket."""
     # List objects within the bucket
