@@ -2,6 +2,8 @@ from flask import Flask, redirect, request, jsonify
 from flask_socketio import SocketIO
 from flask_migrate import Migrate
 from flask_login import LoginManager, login_user, current_user, logout_user, login_required
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import os
 import logging
 from .models import db, User
@@ -9,6 +11,7 @@ from .utils.logger_setup import configure_logging
 from .main import main as main_blueprint
 from .auth import auth as auth_blueprint
 from .admin import admin as admin_blueprint
+from .marketing import marketing as marketing_blueprint
 from config import Config
 from .socket_events import register_events
 from flask_cors import CORS
@@ -37,6 +40,13 @@ def create_app():
 
     # Initialize jwt
     jwt = JWTManager(app)
+
+    # Initialize Flask-Limiter
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["2000 per day", "300 per hour"]  # Global rate limits
+    )
 
     # Custom handler for expired tokens
     @jwt.expired_token_loader
@@ -108,6 +118,8 @@ def create_app():
     app.register_blueprint(main_blueprint)
     app.register_blueprint(auth_blueprint)
     app.register_blueprint(admin_blueprint)
+    app.register_blueprint(marketing_blueprint)
+
 
     register_events(socketio)  # Register your socket.io event handlers
 

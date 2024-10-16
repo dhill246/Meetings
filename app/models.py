@@ -59,3 +59,16 @@ class Invites(db.Model):
 
     # Foreign keys to link to the manager and report
     organization_id = db.Column(db.Integer, db.ForeignKey("organization.id", name="fk_user_organization_id"), nullable=True)
+
+
+class Subscribers(db.Model, UserMixin):
+    __tablename__ = 'subscribers'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120))
+    subscribed_on = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+    # Foreign key
+
+    def __repr__(self):
+        return f"<Subscriber {self.email}>"
