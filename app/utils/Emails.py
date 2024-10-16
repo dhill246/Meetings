@@ -65,6 +65,39 @@ def send_invite_email(email, token, org_name):
                 "text": f"Failed to send invite to {email}. Token: {token}. Error: {e}"
             }
         )
+    
+def get_subscriber_email(email):
+    logging.info(f"Getting email {email}")
+    try:
+
+        api_url = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages"
+        signup_url = f"meet.morphdatastrategies.com/auth/usersignup?token={token}"
+
+        return requests.post(
+                api_url,
+                auth=("api", MAILGUN_API_KEY),
+                data={
+                    "from": f"Daniel Hill <daniel@{MAILGUN_DOMAIN}>",
+                    "to": "danielthill23@gmail.com",
+                    "subject": f"You got a subscriber!!!",
+                    "text": f"Someone just filled out the lead form: {email}"
+                }
+            )
+        
+    except Exception as e:
+        logging.error(f"Failed to send notification to Daniel about {email}")
+        return requests.post(
+            api_url,
+            auth=("api", MAILGUN_API_KEY),
+            data={
+                "from": f"Daniel Hill <daniel@{MAILGUN_DOMAIN}>",
+                "to": ["danielthill23@gmail.com"],  # Fallback email
+                "subject": "Failed to Send Invite",
+                "text": f"Failed to send invite to {email}. Token: {token}. Error: {e}"
+            }
+        )
+
+
 
 
 if __name__ == "__main__":
