@@ -1091,5 +1091,70 @@ def update_meeting_notes():
 
     return jsonify({"message": "Prompt updated successfully"}), 200
 
+import os
+from flask import Flask, request, jsonify
+import requests
+
+app = Flask(__name__)
+
+# Define the new route
+@main.route("/api/start-bot", methods=["POST"])
+@jwt_required()
+def start_meeting_bot():
+
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+    
+    try:
+        # Extract the meeting URL from the incoming request
+        data = request.json
+        meeting_url = data.get("meeting_url")
+        if not meeting_url:
+            return jsonify({"error": "Missing meeting URL"}), 400
+
+        # External API URL for starting the bot
+        url = "https://api.meetingbaas.com/bots"
+
+        # API key, you can store this securely in Heroku's config vars
+        api_key = os.getenv("BAAS_APIKEY")  # Set this in Heroku config vars
+
+        headers = {
+            "Content-Type": "application/json",
+            "x-spoke-api-key": api_key,
+        }
+
+        # Bot configuration to be sent to the external API
+        config = {
+            "meeting_url": meeting_url,
+            "bot_name": "Morph Meeting Recorder",
+            "recording_mode": "speaker_view",
+            "bot_image": "https://default.org/bot.jpg",
+            "entry_message": "Hi! I'm here to record this meeting.",
+            "reserved": False,
+            "speech_to_text": "Gladia",
+        }
+
+        # Make the POST request to the external API
+        response = requests.post(url, json=config, headers=headers)
+        response_data = response.json()
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            return jsonify({"status": "Bot started successfully", "data": response_data}), 200
+        else:
+            return jsonify({"status": "Failed to start bot", "data": response_data}), response.status_code
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
