@@ -65,10 +65,27 @@ class Subscribers(db.Model, UserMixin):
     __tablename__ = 'subscribers'
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120))
-    subscribed_on = db.Column(db.DateTime, default=datetime.utcnow)
-
-
-    # Foreign key
+    subscribed_on = db.Column(db.DateTime, default=datetime.now)
 
     def __repr__(self):
         return f"<Subscriber {self.email}>"
+    
+class BotRecord(db.Model):
+    __tablename__ = 'bot_records'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    bot_id = db.Column(db.String(120), nullable=False)  # Bot ID from the external service
+    meeting_url = db.Column(db.String(500), nullable=False)  # Meeting URL provided by the user
+    meeting_name = db.Column(db.String(500), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_botrecord_user_id'), nullable=False)  # Foreign key to User model
+    org_id = db.Column(db.Integer, db.ForeignKey('organization.id', name='fk_botrecord_org_id'), nullable=False)  # Foreign key to Organization model
+    status = db.Column(db.String(50), nullable=False, default='pending')  # Status of the bot (e.g., pending, completed, failed)
+    created_at = db.Column(db.DateTime, default=datetime.now)  # Timestamp for when the bot was created
+    updated_at = db.Column(db.DateTime, onupdate=datetime.now)  # Timestamp for updates
+    
+    # Relationships
+    user = db.relationship('User', backref='bot_records', lazy=True)  # Relationship to User
+    organization = db.relationship('Organization', backref='bot_records', lazy=True)  # Relationship to Organization
+
+    def __repr__(self):
+        return f"<BotRecord bot_id={self.bot_id} user_id={self.user_id} status={self.status}>"

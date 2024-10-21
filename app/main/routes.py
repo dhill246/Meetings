@@ -1,11 +1,13 @@
 from flask import render_template, jsonify, redirect, url_for, request, session
-from ..models import User, Reports, db, Organization
+from ..models import User, Reports, db, Organization, BotRecord
 from . import main
 from ..utils.s3_utils import check_existing_s3_files, read_text_file
 from datetime import datetime
 from flask_socketio import emit
 from functools import wraps
 import logging
+import os
+import requests
 from botocore.exceptions import ClientError
 from bson import ObjectId
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
@@ -1091,12 +1093,6 @@ def update_meeting_notes():
 
     return jsonify({"message": "Prompt updated successfully"}), 200
 
-import os
-from flask import Flask, request, jsonify
-import requests
-
-app = Flask(__name__)
-
 # Define the new route
 @main.route("/api/start-bot", methods=["POST"])
 @jwt_required()
@@ -1119,6 +1115,7 @@ def start_meeting_bot():
         # Extract the meeting URL from the incoming request
         data = request.json
         meeting_url = data.get("meeting_url")
+        meeting_name = data.get("meeting_name")
         if not meeting_url:
             return jsonify({"error": "Missing meeting URL"}), 400
 
@@ -1150,11 +1147,104 @@ def start_meeting_bot():
 
         # Check if the request was successful
         if response.status_code == 200:
+            bot_id = response_data.get("bot_id")
+            # Store the bot_id, meeting_url, user_id, org_id, etc. in the database or Redis for later use
+            new_bot_record = BotRecord(
+                bot_id=bot_id,
+                user_id=user_id,
+                meeting_url=meeting_url,
+                meeting_name=meeting_name,
+                status="pending",
+                org_id=org_id,
+            )
+            db.session.add(new_bot_record)
+            db.session.commit()
+
             return jsonify({"status": "Bot started successfully", "data": response_data}), 200
+
         else:
             return jsonify({"status": "Failed to start bot", "data": response_data}), response.status_code
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@main.route("/api/webhook", methods=["POST"])
+def webhook():
+    try:
+        # Extract the JSON payload from the incoming request
+        data = request.json
+
+        # Check what event was triggered
+        event = data.get("event")
+        
+        if event == "bot.status_change":
+            # Handle bot status change event
+            bot_id = data["data"]["bot_id"]
+            status_code = data["data"]["status"]["code"]
+            status_time = data["data"]["status"]["created_at"]
+            
+            print(f"Bot {bot_id} status changed: {status_code} at {status_time}")
+            
+            # You can log or store this status change in your database if needed
+            # Perform actions based on status_code (e.g., notify users if bot has started recording)
+            # TODO - Add something that lets the user know it has started.
+        
+        elif event == "complete":
+            # Handle meeting completion event
+            bot_id = data["data"]["bot_id"]
+            video_url = data["data"]["mp4"]
+            speakers = data["data"]["speakers"]
+            transcript = data.get("transcript", [])
+            
+            print(f"Meeting complete for bot {bot_id}. Video URL: {video_url}")
+            print(f"Speakers: {speakers}")
+
+            # Retrieve the corresponding user input data from the database based on the bot_id
+            bot_record = BotRecord.query.filter_by(bot_id=bot_id).first()
+            
+            if not bot_record:
+                return jsonify({"error": "Bot record not found for bot_id"}), 404
+            
+            # Retrieve user info from bot_record
+            user_id = bot_record.user_id
+            meeting_url = bot_record.meeting_url
+            org_id = bot_record.org_id
+
+            user = User.query.filter_by(id=user_id).first()
+            org = Organization.query.filter_by(id=org_id).first()
+
+            if not user or not org:
+                return jsonify({"error": "User or organization not found"}), 404
+
+            org_name = org.name
+
+            # Prepare attendees info for Celery task
+            attendees_info = [
+                {"first_name": user.first_name,
+                 "last_name": user.last_name,
+                 "email": user.email,
+                 "user_id": user.id,
+                 "role": "Manager"},
+            ]
+
+        elif event == "failed":
+            # Handle failed event
+            bot_id = data["data"]["bot_id"]
+            error_message = data["data"]["error"]
+            
+            print(f"Bot {bot_id} failed with error: {error_message}")
+            
+            # Notify the user or log the error in your system
+
+        else:
+            print(f"Unhandled event type: {event}")
+        
+        # Return a success response to acknowledge receipt
+        return jsonify({"status": "success"}), 200
+
+    except Exception as e:
+        print(f"Error processing webhook: {e}")
+        return jsonify({"error": str(e)}), 500
+
 
 
