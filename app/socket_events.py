@@ -25,26 +25,6 @@ def verify_jwt(token):
 
 def register_events(socketio):
 
-    @socketio.on('connect')
-    def test_connect():
-        print("TRYING TO CONNECT")
-        # try:
-        #     # Manually extract token from request headers
-        #     token = request.args.get("token")
-
-        #     # If token is not provided, disconnect
-        #     if not token:
-        #         return disconnect()
-
-        #     # Verify the token
-        #     claims = verify_jwt(token)
-        #     user_id = claims['sub']['user_id']
-
-        #     print(f"Client connected with user ID: {user_id}")
-        # except Exception as e:
-        #     print(f"Connection failed: {str(e)}")
-        #     return disconnect()
-
     @socketio.on('audio_chunk')
     def handle_audio_chunk(data):
         
