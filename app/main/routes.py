@@ -1208,6 +1208,7 @@ def webhook():
             # Retrieve user info from bot_record
             user_id = bot_record.user_id
             meeting_url = bot_record.meeting_url
+            meeting_name = bot_record.meeting_name
             org_id = bot_record.org_id
 
             user = User.query.filter_by(id=user_id).first()
