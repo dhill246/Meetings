@@ -1148,6 +1148,8 @@ def start_meeting_bot():
         # Check if the request was successful
         if response.status_code == 200:
             bot_id = response_data.get("bot_id")
+            logging.info(f"Bot with id {bot_id} has been successfully created.")
+
             # Store the bot_id, meeting_url, user_id, org_id, etc. in the database or Redis for later use
             new_bot_record = BotRecord(
                 bot_id=bot_id,
@@ -1183,7 +1185,7 @@ def webhook():
             status_code = data["data"]["status"]["code"]
             status_time = data["data"]["status"]["created_at"]
             
-            print(f"Bot {bot_id} status changed: {status_code} at {status_time}")
+            logging.info(f"Bot {bot_id} status changed: {status_code} at {status_time}")
             
             # You can log or store this status change in your database if needed
             # Perform actions based on status_code (e.g., notify users if bot has started recording)
@@ -1196,8 +1198,8 @@ def webhook():
             speakers = data["data"]["speakers"]
             transcript = data.get("transcript", [])
             
-            print(f"Meeting complete for bot {bot_id}. Video URL: {video_url}")
-            print(f"Speakers: {speakers}")
+            logging.info(f"Meeting complete for bot {bot_id}. Video URL: {video_url}")
+            logging.info(f"Speakers: {speakers}")
 
             # Retrieve the corresponding user input data from the database based on the bot_id
             bot_record = BotRecord.query.filter_by(bot_id=bot_id).first()
