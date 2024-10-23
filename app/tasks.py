@@ -10,6 +10,10 @@ from app.utils.JoinTranscriptions import combine_text_files, summary_to_word_doc
 from app.utils.s3_utils import upload_file_to_s3, download_file, list_files, delete_from_s3
 from app.utils.Emails import send_email_to_user
 from dotenv import load_dotenv
+from models import Organization, User, BotRecord, db
+import json
+from moviepy.editor import VideoFileClip
+from datetime import datetime
 load_dotenv()
 
 # Set up logging
@@ -57,6 +61,17 @@ def safe_delete_folder(folder_path, retries=3, delay=5):
             time.sleep(delay)
     else:
         logger.error(f"Failed to delete folder {folder_path} after {retries} attempts")
+
+def get_video_duration(video_filepath):
+    try:
+        clip = VideoFileClip(video_filepath)
+        duration = clip.duration  # duration in seconds
+        clip.close()
+        return duration
+    except Exception as e:
+        logger.error(f"Error getting duration of video {video_filepath}: {e}")
+        return 0
+
 
 @app.task
 def dummy_task():
@@ -288,3 +303,100 @@ if __name__ == "__main__":
 
 
     manually_process_one("Daniel", "Hill", "danielthill23@gmail.com", 167, " 0h 0m 5s", "10-12-2024")
+
+@app.task
+def process_recall_video(video_filepath, bot_id, user_id, meeting_url, meeting_name, org_id):
+    try:
+        logger.info(f"Processing video for bot {bot_id}")
+
+        # Retrieve user and organization info from the database
+        user = User.query.filter_by(id=user_id).first()
+        org = Organization.query.filter_by(id=org_id).first()
+
+        if not user or not org:
+            logger.error(f"User or organization not found for bot {bot_id}")
+            return
+
+        org_name = org.name
+
+        # Prepare attendees info for processing
+        attendees_info = [
+            {
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "user_id": user.id,
+                "role": "Manager"
+            },
+        ]
+
+        # Transcribe the MP4 file
+        transcription_text = transcribe_mp4(video_filepath)
+
+        if not transcription_text:
+            logger.error(f"No transcription text obtained for video {video_filepath}")
+            return
+
+        # Save transcription text to a file
+        username = f"{user.first_name} {user.last_name}"
+        date = datetime.now().strftime('%Y-%m-%d')
+        output_filename = f"{username}_{meeting_name}_{date}.txt"
+        transcription_folder = os.path.join('transcriptions', username, date)
+        os.makedirs(transcription_folder, exist_ok=True)
+        transcription_filepath = os.path.join(transcription_folder, output_filename)
+
+        with open(transcription_filepath, 'w', encoding='utf-8') as f:
+            f.write(transcription_text)
+
+        logger.info(f"Transcription saved to {transcription_filepath}")
+
+        # Generate meeting summary
+        meeting_duration = get_video_duration(video_filepath)
+        json_data = summarize_meeting_improved(
+            transcription_filepath,
+            output_filename,
+            username,
+            org_name,
+            org_id,
+            meeting_type="Recall Meeting",
+            meeting_name=meeting_name,
+            user_id=user_id,
+            attendees_info=attendees_info,
+            meeting_duration=meeting_duration
+        )
+
+        # Save the summary JSON data
+        summarized_meeting_folder = os.path.join('summaries', username, date)
+        os.makedirs(summarized_meeting_folder, exist_ok=True)
+        summarized_meeting_filepath = os.path.join(summarized_meeting_folder, output_filename.replace('.txt', '.json'))
+
+        with open(summarized_meeting_filepath, 'w', encoding='utf-8') as f:
+            json.dump(json_data, f, indent=2)
+
+        logger.info(f"Meeting summary saved to {summarized_meeting_filepath}")
+
+        # Generate Word document from the summary
+        meeting_title = f"{meeting_name} on {date}"
+        word_doc_path = json_to_word(summarized_meeting_filepath, username, json_data, meeting_title)
+
+        logger.info(f"Word document created at {word_doc_path}")
+
+        # Send email to the user with the Word document
+        send_email_to_user(word_doc_path, meeting_title, user.email)
+
+        logger.info(f"Email sent to {user.email} with the meeting summary")
+
+        # Update bot_record status in the database
+        bot_record = BotRecord.query.filter_by(bot_id=bot_id).first()
+        if bot_record:
+            bot_record.processed = True  # Ensure this field exists in your model
+            db.session.commit()
+
+        # Clean up files if necessary
+        # os.remove(video_filepath)
+        # os.remove(transcription_filepath)
+        # os.remove(summarized_meeting_filepath)
+        # os.remove(word_doc_path)
+
+    except Exception as e:
+        logger.error(f"Error processing video for bot {bot_id}: {e}")

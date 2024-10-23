@@ -13,6 +13,7 @@ from bson import ObjectId
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from ..utils.mongo import get_meeting_by_id, fetch_meeting_types, get_general_meetings, get_oneonone_meetings, fetch_personal_prompts, fetch_prompts, add_new_meeting_type, update_prompts, delete_prompts, get_one_on_ones, update_notes
 from ..utils.openAI import generate_ai_reply
+from ..tasks import process_recall_video
 
 
 # Utility function to convert ObjectId to string
@@ -1120,29 +1121,26 @@ def start_meeting_bot():
             return jsonify({"error": "Missing meeting URL"}), 400
 
         # External API URL for starting the bot
-        url = "https://api.meetingbaas.com/bots"
+        url = "https://us-west-2.recall.ai/api/v1/bot/"
 
         # API key, you can store this securely in Heroku's config vars
-        api_key = os.getenv("BAAS_APIKEY")  # Set this in Heroku config vars
+        recall_api_key = os.getenv("RECALL_API_KEY")  # Set this in Heroku config vars
 
         headers = {
-            "Content-Type": "application/json",
-            "x-spoke-api-key": api_key,
+            "accept": "application/json",
+            "content-type": "application/json",
+            "Authorization": recall_api_key
         }
 
         # Bot configuration to be sent to the external API
-        config = {
+        payload = {
             "meeting_url": meeting_url,
             "bot_name": "Morph Meeting Recorder",
-            "recording_mode": "speaker_view",
-            "bot_image": "https://default.org/bot.jpg",
-            "entry_message": "Hi! I'm here to record this meeting.",
-            "reserved": False,
-            "speech_to_text": "Gladia",
+            "recording_mode": "audio_only"
         }
 
         # Make the POST request to the external API
-        response = requests.post(url, json=config, headers=headers)
+        response = requests.post(url, json=payload, headers=headers)
         response_data = response.json()
 
         # Check if the request was successful
@@ -1159,6 +1157,7 @@ def start_meeting_bot():
                 status="pending",
                 org_id=org_id,
             )
+
             db.session.add(new_bot_record)
             db.session.commit()
 
@@ -1182,72 +1181,117 @@ def webhook():
         if event == "bot.status_change":
             # Handle bot status change event
             bot_id = data["data"]["bot_id"]
-            status_code = data["data"]["status"]["code"]
-            status_time = data["data"]["status"]["created_at"]
-            
+            status_info = data["data"]["status"]
+            status_code = status_info.get("code")
+            status_time = status_info.get("created_at")
+            sub_code = status_info.get("sub_code")
+            message = status_info.get("message")
+            recording_id = status_info.get("recording_id")  # May be absent
+
             logging.info(f"Bot {bot_id} status changed: {status_code} at {status_time}")
-            
-            # You can log or store this status change in your database if needed
-            # Perform actions based on status_code (e.g., notify users if bot has started recording)
-            # TODO - Add something that lets the user know it has started.
-        
-        elif event == "complete":
-            # Handle meeting completion event
-            bot_id = data["data"]["bot_id"]
-            video_url = data["data"]["mp4"]
-            speakers = data["data"]["speakers"]
-            transcript = data.get("transcript", [])
-            
-            logging.info(f"Meeting complete for bot {bot_id}. Video URL: {video_url}")
-            logging.info(f"Speakers: {speakers}")
 
-            # Retrieve the corresponding user input data from the database based on the bot_id
+            # Retrieve the bot record from the database
             bot_record = BotRecord.query.filter_by(bot_id=bot_id).first()
-            
             if not bot_record:
+                logging.error(f"Bot record not found for bot_id {bot_id}")
                 return jsonify({"error": "Bot record not found for bot_id"}), 404
-            
-            # Retrieve user info from bot_record
-            user_id = bot_record.user_id
-            meeting_url = bot_record.meeting_url
-            meeting_name = bot_record.meeting_name
-            org_id = bot_record.org_id
 
-            user = User.query.filter_by(id=user_id).first()
-            org = Organization.query.filter_by(id=org_id).first()
+            # Update the bot_record with the new status
+            bot_record.status = status_code
+            bot_record.status_time = status_time
+            bot_record.sub_code = sub_code
+            bot_record.message = message
+            bot_record.recording_id = recording_id  # Ensure this field exists in your model
 
-            if not user or not org:
-                return jsonify({"error": "User or organization not found"}), 404
+            db.session.commit()
 
-            org_name = org.name
+            # Perform actions based on status_code
+            if status_code == "done":
+                # Call the "retrieve bot" method
+                retrieve_bot(bot_id)
 
-            # Prepare attendees info for Celery task
-            attendees_info = [
-                {"first_name": user.first_name,
-                 "last_name": user.last_name,
-                 "email": user.email,
-                 "user_id": user.id,
-                 "role": "Manager"},
-            ]
-
-        elif event == "failed":
-            # Handle failed event
-            bot_id = data["data"]["bot_id"]
-            error_message = data["data"]["error"]
-            
-            print(f"Bot {bot_id} failed with error: {error_message}")
-            
-            # Notify the user or log the error in your system
+            # You can add additional status_code checks here if needed
+            # For example, notify the user when recording starts, etc.
 
         else:
-            print(f"Unhandled event type: {event}")
+            logging.warning(f"Unhandled event type: {event}")
         
         # Return a success response to acknowledge receipt
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
-        print(f"Error processing webhook: {e}")
+        logging.error(f"Error processing webhook: {e}")
         return jsonify({"error": str(e)}), 500
 
 
+def retrieve_bot(bot_id):
+    try:
+        # API key, securely stored in environment variables
+        api_key = os.getenv("RECALL_API_KEY")  # Ensure this is set in your environment
 
+        headers = {
+            "accept": "application/json",
+            "Authorization": api_key
+        }
+
+        # API URL to retrieve bot details
+        url = f"https://us-west-2.recall.ai/api/v1/bot/{bot_id}"
+
+        # Make the GET request to retrieve bot data
+        response = requests.get(url, headers=headers)
+        response_data = response.json()
+
+        # Check if the request was successful
+        if response.status_code == 200:
+            # Retrieve the bot record from the database
+            bot_record = BotRecord.query.filter_by(bot_id=bot_id).first()
+            if not bot_record:
+                logging.error(f"Bot record not found for bot_id {bot_id}")
+                return
+
+            # Check if 'video_url' is present in the response data
+            video_url = response_data.get("video_url")
+            if video_url:
+                # Download the video from the 'video_url'
+                video_response = requests.get(video_url, stream=True)
+                if video_response.status_code == 200:
+                    # Define the file path where you want to save the video
+                    # You can customize the directory and filename as needed
+                    video_filename = f"{bot_id}.mp4"
+                    video_filepath = os.path.join('videos', video_filename)  # Ensure 'videos' directory exists
+
+                    # Create the 'videos' directory if it doesn't exist
+                    os.makedirs(os.path.dirname(video_filepath), exist_ok=True)
+
+                    # Download and save the video file in chunks
+                    with open(video_filepath, 'wb') as f:
+                        for chunk in video_response.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                    logging.info(f"Video for bot {bot_id} downloaded and saved as {video_filepath}")
+
+                    # Update the bot_record with the video file path
+                    bot_record.video_file_path = video_filepath  # Ensure this field exists in your model
+
+                    db.session.commit()
+
+                    # Call the Celery task to process the video
+                    process_recall_video.delay(
+                        video_filepath=video_filepath,
+                        bot_id=bot_id,
+                        user_id=bot_record.user_id,
+                        meeting_url=bot_record.meeting_url,
+                        meeting_name=bot_record.meeting_name,
+                        org_id=bot_record.org_id
+                    )
+
+                else:
+                    logging.error(f"Failed to download video for bot {bot_id}. Status code: {video_response.status_code}")
+            else:
+                logging.warning(f"No video_url available for bot {bot_id} at this time.")
+
+        else:
+            logging.error(f"Failed to retrieve bot {bot_id}. Response: {response_data}")
+
+    except Exception as e:
+        logging.error(f"Error retrieving bot {bot_id}: {e}")

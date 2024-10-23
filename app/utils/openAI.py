@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from openai import OpenAI, OpenAIError, LengthFinishReasonError
+from openai import OpenAI, OpenAIError
 import subprocess
 import os
 from pathlib import Path
@@ -78,6 +78,39 @@ def transcribe_webm(full_path, username):
     # Write the text to the file
     with open(local_file_path, 'w', encoding="utf-8") as file:
         file.write(body)
+
+def transcribe_mp4(video_filepath):
+    try:
+        # Extract audio from the video file
+        audio_filepath = video_filepath.replace('.mp4', '.wav')
+
+        # Use ffmpeg to extract audio
+        subprocess.run([
+            "ffmpeg", "-i", video_filepath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_filepath
+        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        # Transcribe the audio file using OpenAI's Whisper API
+        with open(audio_filepath, "rb") as audio_file:
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+
+        transcription_text = transcription.text
+
+        # Optionally, delete the audio file after transcription
+        os.remove(audio_filepath)
+
+        return transcription_text
+
+    except OpenAIError as e:
+        logging.error(f"Error transcribing MP4 file {video_filepath}: {e}")
+        return ""
+
+    except Exception as e:
+        logging.error(f"Error processing MP4 file {video_filepath}: {e}")
+        return ""
+
 
 def summarize_meeting(input_file, output_file, username):
     with open(input_file, 'r', encoding="utf-8") as file:
@@ -212,7 +245,7 @@ def summarize_meeting_improved(input_file, output_file, username, org_name, org_
             logging.warning("Model refused to provide a response.")
             return None
 
-    except LengthFinishReasonError:
+    except OpenAIError.LengthFinishReasonError:
         logging.error("Response was cut off due to max tokens. Consider increasing 'max_tokens'.")
         return None
     except Exception as e:

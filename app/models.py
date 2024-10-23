@@ -79,7 +79,6 @@ class BotRecord(db.Model):
     meeting_name = db.Column(db.String(500), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_botrecord_user_id'), nullable=False)  # Foreign key to User model
     org_id = db.Column(db.Integer, db.ForeignKey('organization.id', name='fk_botrecord_org_id'), nullable=False)  # Foreign key to Organization model
-    status = db.Column(db.String(50), nullable=False, default='pending')  # Status of the bot (e.g., pending, completed, failed)
     created_at = db.Column(db.DateTime, default=datetime.now)  # Timestamp for when the bot was created
     updated_at = db.Column(db.DateTime, onupdate=datetime.now)  # Timestamp for updates
     
