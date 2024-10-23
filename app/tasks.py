@@ -5,14 +5,14 @@ import logging
 import time
 from celery.signals import worker_shutdown
 import boto3
-from app.utils.openAI import transcribe_webm, summarize_meeting, summarize_meeting_improved
-from app.utils.JoinTranscriptions import combine_text_files, summary_to_word_doc, json_to_word
+from app.utils.openAI import transcribe_webm, transcribe_mp4, summarize_meeting_improved
+from app.utils.JoinTranscriptions import combine_text_files, json_to_word
 from app.utils.s3_utils import upload_file_to_s3, download_file, list_files, delete_from_s3
 from app.utils.Emails import send_email_to_user
 from dotenv import load_dotenv
-from models import Organization, User, BotRecord, db
+from app.models import Organization, User, BotRecord, db
 import json
-from moviepy.editor import VideoFileClip
+# from moviepy.editor import VideoFileClip
 from datetime import datetime
 load_dotenv()
 
