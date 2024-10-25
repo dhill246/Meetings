@@ -133,7 +133,7 @@ def get_all_manager_meetings(org_name, org_id, attendee_info, collection_name="M
         }
     })
 
-    return results
+    return list(results)
 
 def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
     """
@@ -155,7 +155,7 @@ def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="
         }
     })
 
-    return results
+    return list(results)
 
 def get_one_on_ones(org_name, org_id, attendee_info, collection_name="Meetings"):
     """
@@ -176,20 +176,6 @@ def get_one_on_ones(org_name, org_id, attendee_info, collection_name="Meetings")
             "role": "Manager"
         }
         }
-        })
-
-    return results
-
-def get_company_meetings(org_name, org_id, collection_name="Meetings"):
-    """
-    Get all meetings inside meeting database for the whole organization.
-    """
-    
-    database = client[org_name]
-    collection = database[collection_name]
-
-    results = collection.find({
-        "org_id": org_id
         })
 
     return results

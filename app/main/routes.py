@@ -1302,3 +1302,54 @@ def retrieve_bot(bot_id):
 
     except Exception as e:
         logging.error(f"Error retrieving bot {bot_id}: {e}")
+
+@main.route("/api/get_employees_by_manager", methods=["GET"])
+@jwt_required()
+def get_employees_by_manager():
+    """
+    GET request:
+
+        - Receives: JWT Token (with manager_id in claims)
+        - Returns: List of direct reports for the authenticated manager
+        
+        Response example:
+        {
+            "reports": [
+                {
+                    "id": 1,
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "email": "john.doe@example.com"
+                },
+                {
+                    "id": 2,
+                    "first_name": "Jane",
+                    "last_name": "Smith",
+                    "email": "jane.smith@example.com"
+                }
+            ]
+        }
+    """
+    claims = verify_jwt_in_request()[1]
+    manager_id = claims['sub']['user_id']  # Extract the manager's user ID from the token
+
+    # Query the Reports model for all direct reports of this manager
+    direct_reports = Reports.query.filter_by(manager_id=manager_id).all()
+
+    # If no direct reports are found, return an empty list
+    if not direct_reports:
+        return jsonify({"reports": []}), 200
+
+    # Prepare the list of direct reports
+    reports_list = []
+    for report in direct_reports:
+        report_user = User.query.get(report.report_id)
+        if report_user:
+            reports_list.append({
+                "id": report_user.id,
+                "first_name": report_user.first_name,
+                "last_name": report_user.last_name,
+                "email": report_user.email
+            })
+
+    return jsonify({"reports": reports_list}), 200
