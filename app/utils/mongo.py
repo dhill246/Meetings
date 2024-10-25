@@ -16,6 +16,11 @@ uri = os.getenv("MONGO_URI")
 client = MongoClient(uri, server_api=ServerApi(version="1", strict=True, deprecation_errors=True))
 
 def get_prompts(org_name, org_id, type_name, user_id, collection_name="MeetingTypes"):
+    """
+    Get all meeting-types and prompts (company-wide) and user added meeting-types 
+    and prompts if there are any.
+    """
+    
     print(f"Getting prompts for {org_name} with org_id {org_id} and type_name {type_name} and user_id {user_id}")
 
     database = client[org_name]
@@ -58,6 +63,12 @@ def get_prompts(org_name, org_id, type_name, user_id, collection_name="MeetingTy
     return system_prompt, categories
 
 def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_duration, type_name, meeting_name, collection_name="Meeting"):
+    """
+    Add a meeting that has occured to Mongo database. This includes the raw text,
+    summary in json format, attendees of the meeting, the duration of the meeting, 
+    the type of meeting, and the name of the meeting.
+    """
+
     logging.info(f"Adding meeting to {org_name} with org_id {org_id} and type_name {type_name}")
 
     database = client[org_name]
@@ -79,6 +90,9 @@ def add_meeting(org_name, org_id, raw_text, json_summary, attendees, meeting_dur
         })
 
 def get_oneonone_meetings(meeting_type, org_name, org_id, attendee_info, collection_name="Meetings"):
+    """
+    Get all one-on-one meetings between a specific manager and specific employee.
+    """
 
     manager_id = attendee_info["manager_id"]
     report_id = attendee_info["report_id"]
@@ -100,6 +114,9 @@ def get_oneonone_meetings(meeting_type, org_name, org_id, attendee_info, collect
     return results
 
 def get_all_manager_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
+    """
+    Get all meetings held by a specific manager, regardless of type.
+    """
 
     manager_id = attendee_info["manager_id"]
 
@@ -119,6 +136,9 @@ def get_all_manager_meetings(org_name, org_id, attendee_info, collection_name="M
     return results
 
 def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
+    """
+    Get all meetings with a specific employee (one-on-ones), where they were the direct report.
+    """
 
     employee_id = attendee_info["employee_id"]
 
@@ -137,27 +157,10 @@ def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="
 
     return results
 
-def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
-
-    employee_id = attendee_info["employee_id"]
-
-    database = client[org_name]
-    collection = database[collection_name]
-
-    results = collection.find({
-        "org_id": org_id,
-        "attendees": {
-            "$elemMatch": {
-                "user_id": employee_id,
-                "role": "Report"
-            }
-        }
-    })
-
-    return results
-
-
 def get_one_on_ones(org_name, org_id, attendee_info, collection_name="Meetings"):
+    """
+    Get all of a manager's one-on-one meetings with all employees
+    """
 
     manager_id = attendee_info["manager_id"]
 
@@ -178,6 +181,9 @@ def get_one_on_ones(org_name, org_id, attendee_info, collection_name="Meetings")
     return results
 
 def get_company_meetings(org_name, org_id, collection_name="Meetings"):
+    """
+    Get all meetings inside meeting database for the whole organization.
+    """
     
     database = client[org_name]
     collection = database[collection_name]
@@ -191,6 +197,9 @@ def get_company_meetings(org_name, org_id, collection_name="Meetings"):
 
 # Get the number of meetings within the past month for a specific manager 
 def get_meetings_last_month(org_name, org_id, id, role="Manager", days=30, collection_name="Meetings"):
+    """
+    Get all meetings for a specific manager or employee within the past month.
+    """
 
     database = client[org_name]
     collection = database[collection_name]
@@ -216,6 +225,10 @@ def get_meetings_last_month(org_name, org_id, id, role="Manager", days=30, colle
 
 
 def get_meeting_by_id(org_name, org_id, meeting_id, collection_name="Meetings"):
+    """
+    Get a specific meeting by it's id in the database.
+    """
+
     database = client[org_name]
     collection = database[collection_name]
 
@@ -232,8 +245,12 @@ def get_meeting_by_id(org_name, org_id, meeting_id, collection_name="Meetings"):
 
     return result
 
-
 def fetch_prompts(org_name, org_id, scope, collection_name="MeetingTypes"):
+    """
+    Fetches all prompts for a specific scope, either company-wide (everyone can see)
+    or personal (scope is user_id and only current user can see)
+    """
+
     database = client[org_name]
     collection = database[collection_name]
 
@@ -245,6 +262,11 @@ def fetch_prompts(org_name, org_id, scope, collection_name="MeetingTypes"):
     return list(result)
     
 def update_prompts(org_name, org_id, role, prompt_id, updated_data, scope, collection_name="MeetingTypes"):
+    """
+    Update company-wide prompts if scope is company-wide, or a specific user prompt
+    if scope is user_id.
+    """
+
     database = client[org_name]
     collection = database[collection_name]
 
@@ -264,9 +286,11 @@ def update_prompts(org_name, org_id, role, prompt_id, updated_data, scope, colle
 
         return result
 
-
-# Helper function to convert meeting duration from "Xh Xm Xs" to total seconds
 def duration_to_seconds(duration_str):
+    """
+    Helper function to convert meeting duration from "Xh Xm Xs" to total seconds
+    """
+    
     parts = duration_str.split()
     hours = int(parts[0].replace("h", ""))
     minutes = int(parts[1].replace("m", ""))
@@ -274,6 +298,12 @@ def duration_to_seconds(duration_str):
     return hours * 3600 + minutes * 60 + seconds
 
 def fetch_meeting_types(org_name, org_id, scope, collection_name="MeetingTypes"):
+    """
+    Get all available meeting types as a list
+    """
+
+    # TODO - This can be simplified without requesting all this data.
+
     database = client[org_name]
     collection = database[collection_name]
 

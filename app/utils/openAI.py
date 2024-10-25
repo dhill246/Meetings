@@ -254,106 +254,20 @@ def summarize_meeting_improved(input_file, output_file, username, org_name, org_
 
 
 
-def generate_ai_reply(messages, page_url, user_id, org_name, org_id):
+def generate_ai_reply(messages, user_id, org_name, org_id, employee_ids, manager_ids=None):
 
     content = "Please help the user answer the question they ask using the following data. Answer the question thouroughly, but in as few sentences as possible. No bullet points or lists."
 
-    # Parse the URL
-    parsed_url = urlparse(page_url)
-    url_parts = parsed_url.path.strip("/").split("/")
+    # Add meetings to content by iterating through employees and managers
+    for employee_id in employee_ids:
+        attendee_info = {"employee_id": employee_id}
+        emp_meetings = get_all_employee_meetings(org_name, org_id, attendee_info)
+        content += emp_meetings
 
-    if url_parts[0] == "home":
-        if url_parts[1] == "view_meeting":
-            meeting_id = url_parts[2]
-
-            meeting_data = get_meeting_data(org_name, org_id, meeting_id)
-
-            summary = str(meeting_data['summary'])
-
-            try:
-                text = str(meeting_data['raw_text'])
-            except Exception as e:
-                text = ""
-
-            content += summary + " " + text
-
-        if url_parts[1] == "meetings":
-
-            if url_parts[2] == "oneonone":
-                report_id = int(url_parts[3])
-
-                report_data = list(get_all_one_on_ones(org_name, org_id, report_id))
-
-                content += str(report_data)
-
-            if url_parts[2] == "generalmeetings":
-
-                meeting_type = url_parts[3]
-                meeting_type = meeting_type.replace("_", " ")
-
-                attendee_info = {"user_id": user_id}
-
-                general_meeting_data = list(get_general_meetings(meeting_type, org_name, org_id, attendee_info))
-
-
-                print(general_meeting_data)
-                content += str(general_meeting_data)
-
-    elif url_parts[0] == "admin":
-        if url_parts[1] == "reports":
-            report_id = url_parts[2]
-
-            report_data = list(get_all_one_on_ones(org_name, org_id, report_id))
-
-            content += str(report_data)
-
-        elif url_parts[1] == "oneonones":
-            manager_id = int(url_parts[2])
-
-            attendee_info = {"manager_id": manager_id}
-
-            report_data = list(get_all_manager_meetings(org_name, org_id, attendee_info))
-
-            content += str(report_data)
-
-        elif url_parts[1] == "employee":
-            employee_id = int(url_parts[2])
-
-            attendee_info = {"employee_id": employee_id}
-
-            report_data = list(get_all_employee_meetings(org_name, org_id, attendee_info))
-
-            content += str(report_data)
-
-        elif url_parts[1] == "specific_meeting":
-            meeting_id = url_parts[2]
-
-            meeting_data = get_meeting_data(org_name, org_id, meeting_id)
-
-            summary = str(meeting_data['summary'])
-
-            try:
-                text = str(meeting_data['raw_text'])
-            except Exception as e:
-                text = ""
-
-            content += summary + " " + text
-
-        elif url_parts[1] == "dashboard":
-            whole_company = list(get_company_meetings(org_name, org_id))
-
-            content += str(whole_company)
-
-        else:
-            manager_id = int(url_parts[1])
-
-            attendee_info = {"manager_id": manager_id}
-
-            report_data = list(get_all_manager_meetings(org_name, org_id, attendee_info))
-
-            content += str(report_data)
-
-
+    for manager_id in manager_ids:
+        attendee_info = {"manager_id": manager_id}
+        man_meetings = get_all_manager_meetings(org_name, org_id, attendee_info)
+        content += man_meetings
 
     ai_messages = [
         {"role": "system", "content": content},
