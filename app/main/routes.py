@@ -26,7 +26,7 @@ def convert_object_id_to_str(data):
                 data[key] = convert_object_id_to_str(value)
             elif isinstance(value, list):
                 data[key] = [convert_object_id_to_str(item) for item in value]
-    return data
+    return data    
 
 @main.route('/api/home', methods=["GET", "POST"])
 @jwt_required()
@@ -225,49 +225,6 @@ def view_oneonone_meetings(report_id):
                     for m in meetings]
     
     return jsonify({"report": {"id": report.id, "first_name": report.first_name, "last_name": report.last_name}, "meetings": meetings_list}), 200
-
-# @main.route('/api/meeting/<int:meeting_id>', methods=['GET'])
-# @jwt_required()
-# def view_meeting_details(meeting_id):
-#     try:
-#         claims = verify_jwt_in_request()[1]
-#         org_id = claims['sub']['org_id']
-#         user_id = claims['sub']['user_id']
-
-#         if not org_id or not user_id:
-#             print("Please log in to access this page.")
-#             return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
-        
-#         meeting = Meeting.query.get(meeting_id)
-
-#         if not meeting:
-#             return jsonify({"error": "Meeting not found."}), 404
-
-#         # Extract report_id from the meeting object
-#         report = User.query.get(meeting.report_id)
-#         if not report:
-#             return jsonify({"error": "Report not found."}), 404
-
-#         meeting_summary = read_text_file(meeting.s3_summary_name)
-#         formatted_summary = meeting_summary.replace('- ', '\n\n- ')
-
-#         # Convert the Markdown text to HTML
-#         meeting_summary_html = markdown.markdown(formatted_summary)
-
-#         # return render_template('meeting_details.html', meeting_summary=meeting_summary_html, meeting=meeting, report=report)
-#         return jsonify({
-#             "meeting_summary_html": meeting_summary_html,
-#             "meeting": {"id": meeting.id, "date": meeting.date, "summary": meeting.summary},
-#             "report": {"id": report.id, "first_name": report.first_name, "last_name": report.last_name}
-#         }), 200
-    
-#     except ClientError as e:
-#         if e.response['Error']['Code'] == 'NoSuchKey':
-#             return jsonify({"error": "File not found in S3 bucket"}), 404
-#         else:
-#             return jsonify({"error": "An unexpected error occurred"}), 500
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
 
 @main.route('/api/meeting/<string:meeting_id>', methods=["GET"])
 @jwt_required()
@@ -806,6 +763,9 @@ def add_meeting_type_personal():
 @main.route('/api/update_personal_prompt/<prompt_id>', methods=["POST"])
 @jwt_required()
 def update_prompt(prompt_id):
+    """
+    User update an existing prompt.
+    """
 
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
@@ -858,6 +818,11 @@ def delete_prompt(prompt_id):
 @main.route('/api/fetch_prompt_addons', methods=["GET"])
 @jwt_required()
 def fetch_prompt_addons():
+    """
+    Fetch prompts associated with the current user where scope is the user
+    id, meaning the meeting has been added onto or the user created the meeting type themselves.
+    """
+    
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
@@ -889,6 +854,10 @@ def fetch_prompt_addons():
 @main.route('/api/add_personal_prompt_modification', methods=["POST"])
 @jwt_required()
 def add_personal_prompt_modification():
+    """
+    Manager add onto the end of a company-wide meeting type.
+    """
+
     # Extract JWT claims
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub'].get('org_id')
@@ -938,9 +907,13 @@ def add_personal_prompt_modification():
     return jsonify({"message": "Meeting type added successfully"}), 200
 
 
-@main.route('/api/chat', methods=['POST'])
+@main.route('/api/chat_manager', methods=['POST'])
 @jwt_required()
-def chat():
+def chat_manager():
+    """
+    Chat endpoint, intakes the manager's selected employees to ask a question about.
+    """
+    
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
@@ -964,18 +937,23 @@ def chat():
         return jsonify({"error": "No data provided"}), 400
 
     messages = data.get('messages')
-    page_url = data.get('pageUrl')
+    employee_ids = data.get('selectedEmployees')
+
 
     print(f"Messages: {messages}")
-    print(f"Page URL: {page_url}")
+    print(f"Employees: {employee_ids}")
 
-    if not messages or not page_url:
-        return jsonify({"error": "Missing 'messages' or 'pageUrl' in request"}), 400
+    if not messages:
+        return jsonify({"error": "Missing 'messages' in request"}), 400
 
     # Process the messages and page URL
     try:
-        reply = str(generate_ai_reply(messages, page_url, user_id, org_name, org_id=org_id))
-
+        reply = str(generate_ai_reply(messages, 
+                                      user_id, 
+                                      org_name, 
+                                      org_id=org_id, 
+                                      employee_ids=employee_ids))
+        
     except Exception as e:
         print(f"Error generating AI reply: {e}")
         return jsonify({"error": "Failed to generate AI reply"}), 500
@@ -986,6 +964,10 @@ def chat():
 @main.route('/api/view_meetings/oneonone', methods=["GET"])
 @jwt_required()
 def get_manager_oneonones():
+    """
+    Get all one on one meetings associated with the manager (current user)
+    """
+
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
@@ -1014,6 +996,10 @@ def get_manager_oneonones():
 @main.route('/api/fetch_prompts', methods=["GET"])
 @jwt_required()
 def fetch_prompts_for_company():
+    """
+    Fetch company wide prompts to be used by a manager.
+    """
+    
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
@@ -1037,13 +1023,15 @@ def fetch_prompts_for_company():
     else:
         prompts_list = [{"prompt_id": str(m["_id"]), "company_prompts": m["default_prompts"], "type": m["type_name"], "description": m["description"]} for m in prompts]
 
-
         return jsonify({"prompts": prompts_list}), 200
     
 
 @main.route('/api/delete_prompt/<prompt_id>', methods=["GET"])
 @jwt_required()
 def delete_prompt_main(prompt_id):
+    """
+    Given prompt id from the frontend, look it up and delete it.
+    """
 
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
@@ -1070,6 +1058,11 @@ def delete_prompt_main(prompt_id):
 @main.route('/api/update_meeting_notes', methods=["POST"])
 @jwt_required()
 def update_meeting_notes():
+    """
+    Given a meeting_id and some notes from the frontend, add them to the user's 
+    meeting and save in MongoDB.
+    """
+
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
@@ -1098,6 +1091,9 @@ def update_meeting_notes():
 @main.route("/api/start-bot", methods=["POST"])
 @jwt_required()
 def start_meeting_bot():
+    """
+    Request a meeting bot to come to the meeting via Recall's API and save to db
+    """
 
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
@@ -1171,6 +1167,11 @@ def start_meeting_bot():
     
 @main.route("/api/webhook", methods=["POST"])
 def webhook():
+    """
+    Listener to receive updates from Recall meeting bot.
+    """
+    # TODO - Update the model for BotRecord in db to include the necessary fields
+
     try:
         # Extract the JSON payload from the incoming request
         data = request.json
@@ -1225,6 +1226,11 @@ def webhook():
 
 
 def retrieve_bot(bot_id):
+    """
+    Function to be called after bot status is done. This retrieves the url 
+    from Recall API and starts the background worker job to process.
+    """
+
     try:
         # API key, securely stored in environment variables
         api_key = os.getenv("RECALL_API_KEY")  # Ensure this is set in your environment
@@ -1251,6 +1257,7 @@ def retrieve_bot(bot_id):
 
             # Check if 'video_url' is present in the response data
             video_url = response_data.get("video_url")
+            
             if video_url:
                 # Download the video from the 'video_url'
                 video_response = requests.get(video_url, stream=True)

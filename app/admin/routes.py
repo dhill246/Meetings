@@ -5,6 +5,7 @@ from ..models import Organization, User, db, Invites, Reports
 from sqlalchemy.orm import aliased
 from ..utils.mongo import get_meetings_last_month, duration_to_seconds
 from ..utils.Emails import send_invite_email
+from ..utils.openAI import generate_ai_reply
 import secrets
 from datetime import datetime
 from ..utils.openAI import generate_ai_reply_for_meeting
@@ -771,3 +772,62 @@ def delete_meeting(meeting_id):
         return jsonify({"error": "An error occurred while deleting the meeting."}), 500
 
 
+@admin.route('/api/chat_admin', methods=['POST'])
+@jwt_required()
+def chat_admin():
+# Get the JWT claims
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+    role = claims['sub']['role']
+
+    logging.info(f"Claims: {claims}")
+
+    # Check if the organization and user are valid
+    if not org_id or not user_id:
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+
+    # Only admins can delete meetings
+    if role != "admin":
+        return jsonify({"msg": "Admins only!"}), 403
+
+    # Find the current user
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Find the organization
+    org = Organization.query.get(org_id)
+
+    org_name = org.name
+
+    # Get the JSON data from the request
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "No data provided"}), 400
+
+    messages = data.get('messages')
+    employee_ids = data.get('selectedEmployees')
+    manager_ids = data.get('selectedManagers')
+
+    print(f"Messages: {messages}")
+    print(f"Page URL: {employee_ids}")
+    print(f"Managers: {manager_ids}")
+
+    if not messages:
+        return jsonify({"error": "Missing 'messages' in request"}), 400
+
+    # Process the messages and page URL
+    try:
+        reply = str(generate_ai_reply(messages, 
+                                      user_id, 
+                                      org_name, 
+                                      org_id=org_id, 
+                                      employee_ids=employee_ids, 
+                                      manager_ids=manager_ids))
+
+    except Exception as e:
+        print(f"Error generating AI reply: {e}")
+        return jsonify({"error": "Failed to generate AI reply"}), 500
+
+    return jsonify({"reply": reply}), 200
