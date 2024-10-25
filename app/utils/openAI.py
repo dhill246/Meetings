@@ -4,7 +4,7 @@ import subprocess
 import os
 from pathlib import Path
 import time
-from app.utils.mongo import get_prompts, add_meeting, get_meeting_data, get_all_one_on_ones, get_all_manager_meetings, get_general_meetings, get_all_employee_meetings, get_company_meetings
+from app.utils.mongo import get_prompts, add_meeting, get_meeting_data, get_all_one_on_ones, get_all_manager_meetings, get_general_meetings, get_all_employee_meetings
 import json
 from pydantic import create_model
 from typing import List
@@ -259,15 +259,17 @@ def generate_ai_reply(messages, user_id, org_name, org_id, employee_ids, manager
     content = "Please help the user answer the question they ask using the following data. Answer the question thouroughly, but in as few sentences as possible. No bullet points or lists."
 
     # Add meetings to content by iterating through employees and managers
-    for employee_id in employee_ids:
-        attendee_info = {"employee_id": employee_id}
-        emp_meetings = get_all_employee_meetings(org_name, org_id, attendee_info)
-        content += emp_meetings
+    if employee_ids:
+        for employee_id in employee_ids:
+            attendee_info = {"employee_id": employee_id}
+            emp_meetings = get_all_employee_meetings(org_name, org_id, attendee_info)
+            content += str(emp_meetings)
 
-    for manager_id in manager_ids:
-        attendee_info = {"manager_id": manager_id}
-        man_meetings = get_all_manager_meetings(org_name, org_id, attendee_info)
-        content += man_meetings
+    if manager_ids:
+        for manager_id in manager_ids:
+            attendee_info = {"manager_id": manager_id}
+            man_meetings = get_all_manager_meetings(org_name, org_id, attendee_info)
+            content += str(man_meetings)
 
     ai_messages = [
         {"role": "system", "content": content},

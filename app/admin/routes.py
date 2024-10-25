@@ -810,9 +810,9 @@ def chat_admin():
     employee_ids = data.get('selectedEmployees')
     manager_ids = data.get('selectedManagers')
 
-    print(f"Messages: {messages}")
-    print(f"Page URL: {employee_ids}")
-    print(f"Managers: {manager_ids}")
+    logging.info(f"Messages: {messages}")
+    logging.info(f"Employees: {employee_ids}")
+    logging.info(f"Managers: {manager_ids}")
 
     if not messages:
         return jsonify({"error": "Missing 'messages' in request"}), 400
