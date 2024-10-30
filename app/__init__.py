@@ -59,7 +59,7 @@ def create_app():
     CORS(app, 
          supports_credentials=True, 
          resources={r"/api/*": {"origins": TRUSTED_DOMAIN},
-                    r"/api/webhook": {"origins": [WEBHOOK_DOMAIN]}})
+                    r"/api/webhook": {"origins": "*"}})
 
     @app.before_request
     def handle_options():
