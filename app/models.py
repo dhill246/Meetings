@@ -77,6 +77,7 @@ class BotRecord(db.Model):
     bot_id = db.Column(db.String(120), nullable=False)  # Bot ID from the external service
     meeting_url = db.Column(db.String(500), nullable=False)  # Meeting URL provided by the user
     meeting_name = db.Column(db.String(500), nullable=False)
+    meeting_type = db.Column(db.String(500), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_botrecord_user_id'), nullable=False)  # Foreign key to User model
     org_id = db.Column(db.Integer, db.ForeignKey('organization.id', name='fk_botrecord_org_id'), nullable=False)  # Foreign key to Organization model
     created_at = db.Column(db.DateTime, default=datetime.now)  # Timestamp for when the bot was created
