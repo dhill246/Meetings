@@ -1317,23 +1317,26 @@ def retrieve_bot(bot_id):
             video_url = response_data.get("video_url")
             
             if video_url:
+                video_filename = f"{bot_id}.mp4"
+                video_filepath = os.path.join("videos", video_filename)  # Ensure 'videos' directory exists
+
+                # Create the 'videos' directory if it doesn't exist
+                os.makedirs(os.path.dirname(video_filepath), exist_ok=True)
+
                 # Download the video from the 'video_url'
                 video_response = requests.get(video_url, stream=True)
+
+                print(f"Got video url for bot {bot_id}: {video_url}")
+
                 if video_response.status_code == 200:
-                    # Define the file path where you want to save the video
-                    # You can customize the directory and filename as needed
-                    video_filename = f"{bot_id}.mp4"
-                    video_filepath = os.path.join('videos', video_filename)  # Ensure 'videos' directory exists
-
-                    # Create the 'videos' directory if it doesn't exist
-                    os.makedirs(os.path.dirname(video_filepath), exist_ok=True)
-
+            
                     # Download and save the video file in chunks
                     with open(video_filepath, 'wb') as f:
                         for chunk in video_response.iter_content(chunk_size=8192):
                             if chunk:
                                 f.write(chunk)
-                    logging.info(f"Video for bot {bot_id} downloaded and saved as {video_filepath}")
+
+                    print(f"Video for bot {bot_id} downloaded and saved as {video_filepath}")
 
                     # Update the bot_record with the video file path
                     bot_record.video_file_path = video_filepath
