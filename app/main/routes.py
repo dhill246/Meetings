@@ -1184,97 +1184,97 @@ def webhook():
     """
     Listener to receive updates from Recall meeting bot.
     """
-    logging.info("Received webhook request")
+    print("Received webhook request")
     
     headers = request.headers
-    logging.info(f"Headers received: {headers}")
+    print(f"Headers received: {headers}")
 
-    payload = request.get_data(as_text=True)  # Retrieve raw body text for verification
-    logging.info(f"Payload received: {payload}")
+    payload = request.get_data()
+    print(f"Payload received: {payload}")
 
     WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
-    logging.info("Retrieved webhook secret")
+    print("Retrieved webhook secret")
 
     try:
         # Verify the webhook using the secret key
         wh = Webhook(WEBHOOK_SECRET)
-        logging.info("Webhook object created")
+        print("Webhook object created")
 
         wh.verify(payload, headers)
-        logging.info("Webhook verified")
+        print("Webhook verified")
 
         # Extract the JSON payload from the incoming request
         data = request.json
-        logging.info(f"Extracted data from payload: {data}")
+        print(f"Extracted data from payload: {data}")
 
         # Check what event was triggered
         event = data.get("event")
-        logging.info(f"Event type: {event}")
+        print(f"Event type: {event}")
         
         if event == "bot.status_change":
-            logging.info("Processing bot.status_change event")
+            print("Processing bot.status_change event")
             
             # Handle bot status change event
             bot_id = data["data"]["bot_id"]
-            logging.info(f"Extracted bot_id: {bot_id}")
+            print(f"Extracted bot_id: {bot_id}")
 
             status_info = data["data"]["status"]
-            logging.info(f"Extracted status_info: {status_info}")
+            print(f"Extracted status_info: {status_info}")
 
             status_code = status_info.get("code")
-            logging.info(f"Extracted status_code: {status_code}")
+            print(f"Extracted status_code: {status_code}")
 
             status_time = status_info.get("created_at")
-            logging.info(f"Extracted status_time: {status_time}")
+            print(f"Extracted status_time: {status_time}")
 
             sub_code = status_info.get("sub_code")
-            logging.info(f"Extracted sub_code: {sub_code}")
+            print(f"Extracted sub_code: {sub_code}")
 
             message = status_info.get("message")
-            logging.info(f"Extracted message: {message}")
+            print(f"Extracted message: {message}")
 
             recording_id = status_info.get("recording_id")  # May be absent
-            logging.info(f"Extracted recording_id: {recording_id}")
+            print(f"Extracted recording_id: {recording_id}")
 
             # Retrieve the bot record from the database
             bot_record = BotRecord.query.filter_by(bot_id=bot_id).first()
-            logging.info(f"Bot record found: {bot_record}")
+            print(f"Bot record found: {bot_record}")
 
             if not bot_record:
                 logging.error(f"Bot record not found for bot_id {bot_id}")
                 return jsonify({"error": "Bot record not found for bot_id"}), 404
-            logging.info("Bot record found successfully")
+            print("Bot record found successfully")
 
             # Update the bot_record with the new status
             bot_record.status = status_code
-            logging.info("Updated bot_record status")
+            print("Updated bot_record status")
 
             bot_record.status_time = status_time
-            logging.info("Updated bot_record status_time")
+            print("Updated bot_record status_time")
 
             bot_record.sub_code = sub_code
-            logging.info("Updated bot_record sub_code")
+            print("Updated bot_record sub_code")
 
             bot_record.message = message
-            logging.info("Updated bot_record message")
+            print("Updated bot_record message")
 
             bot_record.recording_id = recording_id  # Ensure this field exists in your model
-            logging.info("Updated bot_record recording_id")
+            print("Updated bot_record recording_id")
 
             db.session.commit()
-            logging.info("Database commit successful")
+            print("Database commit successful")
 
             # Perform actions based on status_code
             if status_code == "done":
-                logging.info("Status is 'done', calling retrieve_bot function")
+                print("Status is 'done', calling retrieve_bot function")
                 retrieve_bot(bot_id)
-            logging.info("Completed status handling")
+            print("Completed status handling")
 
         else:
             logging.warning(f"Unhandled event type: {event}")
         
         # Return a success response to acknowledge receipt
-        logging.info("Webhook processed successfully, returning success response")
+        print("Webhook processed successfully, returning success response")
         return jsonify({"status": "success"}), 200
 
     except Exception as e:
