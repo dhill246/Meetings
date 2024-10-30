@@ -17,6 +17,7 @@ from flask_talisman import Talisman
 from flask_jwt_extended import JWTManager
 
 TRUSTED_DOMAIN = os.getenv('TRUSTED_DOMAIN')
+WEBHOOK_DOMAIN = os.getenv('WEBHOOK_DOMAIN')
 
 socketio = SocketIO(cors_allowed_origins=TRUSTED_DOMAIN,
                     async_mode='eventlet')  # Create the SocketIO instance globally
@@ -57,7 +58,8 @@ def create_app():
     # Initialize CORS
     CORS(app, 
          supports_credentials=True, 
-         resources={r"/api/*": {"origins": TRUSTED_DOMAIN}})
+         resources={r"/api/*": {"origins": TRUSTED_DOMAIN},
+                    r"/api/webhook": {"origins": [WEBHOOK_DOMAIN]}})
 
     @app.before_request
     def handle_options():

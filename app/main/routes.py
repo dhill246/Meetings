@@ -1113,6 +1113,9 @@ def start_meeting_bot():
         data = request.json
         meeting_url = data.get("meeting_url")
         meeting_name = data.get("meeting_name")
+        meeting_type = data.get("meeting_type")
+        join_at = data.get("join_at")
+
         if not meeting_url:
             return jsonify({"error": "Missing meeting URL"}), 400
 
@@ -1132,44 +1135,49 @@ def start_meeting_bot():
         payload = {
             "meeting_url": meeting_url,
             "bot_name": "Morph Meeting Recorder",
-            "recording_mode": "audio_only"
+            "recording_mode": "audio_only",
+            "join_at": join_at
         }
 
         # Make the POST request to the external API
         response = requests.post(url, json=payload, headers=headers)
         response_data = response.json()
-        print(f"THE CODE IS: {response.status_code}")
-
-        # Check if the request was successful
-        if response.status_code == 200 or response.status_code == 201:
-            bot_id = response_data.get("bot_id")
-            logging.info(f"Bot with id {bot_id} has been successfully created.")
-
-            # Store the bot_id, meeting_url, user_id, org_id, etc. in the database or Redis for later use
-            new_bot_record = BotRecord(
-                bot_id=bot_id,
-                user_id=user_id,
-                meeting_url=meeting_url,
-                meeting_name=meeting_name,
-                status="pending",
-                status_time=datetime.now(),  # Initialize with current time
-                sub_code=None,              # Can be updated later by webhook
-                message=None,               # Can be updated later by webhook
-                recording_id=None,          # Can be updated later by webhook
-                org_id=org_id,
-            )
-
-            db.session.add(new_bot_record)
-            db.session.commit()
-
-            return jsonify({"status": "Bot started successfully. Please give the bot up to 30 seconds to join your meeting.", "data": response_data}), 200
-
-        else:
-            print(f"Failed to start bot: {response_data}.")
-            return jsonify({"status": "Failed to start bot", "data": response_data}), response.status_code
 
     except Exception as e:
+        print(e)
         return jsonify({"error": str(e)}), 500
+
+    # Check if the request was successful
+    if response.status_code == 200 or response.status_code == 201:
+        bot_id = response_data.get("id")
+        logging.info(f"Bot with id {bot_id} has been successfully created.")
+        print(f"Bot with id {bot_id} has been successfully created.")
+
+        # Store the bot_id, meeting_url, user_id, org_id, etc. in the database or Redis for later use
+        new_bot_record = BotRecord(
+            bot_id=bot_id,
+            user_id=user_id,
+            meeting_url=meeting_url,
+            meeting_name=meeting_name,
+            meeting_type=meeting_type,
+            status="pending",
+            status_time=datetime.now(),  # Initialize with current time
+            sub_code=None,              # Can be updated later by webhook
+            message=None,               # Can be updated later by webhook
+            recording_id=None,          # Can be updated later by webhook
+            org_id=org_id,
+        )
+
+        print(f"Bot initialized for loading to db with id {bot_id}")
+
+        db.session.add(new_bot_record)
+        db.session.commit()
+
+        return jsonify({"status": "Bot started successfully. Please give the bot up to 30 seconds to join your meeting.", "data": response_data}), 200
+
+    else:
+        print(f"Failed to start bot: {response_data}.")
+        return jsonify({"status": "Failed to start bot", "data": response_data}), response.status_code
     
 @main.route("/api/webhook", methods=["POST"])
 def webhook():
@@ -1294,6 +1302,7 @@ def retrieve_bot(bot_id):
 
                     user_id = bot_record.user_id
                     org_id = bot_record.org_id
+                    meeting_type = bot_record.meeting_type
 
                     db.session.commit()
 
@@ -1316,6 +1325,7 @@ def retrieve_bot(bot_id):
                     process_recall_video.delay(
                         video_filepath=video_filepath,
                         bot_id=bot_id,
+                        meeting_type=meeting_type,
                         user=attendees_info,
                         org=org_info,
                         meeting_name=bot_record.meeting_name

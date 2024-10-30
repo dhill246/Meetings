@@ -1,8 +1,8 @@
-"""Add BotRecord table
+"""Initial migration
 
-Revision ID: 6e71689c0637
-Revises: 53703e731af8
-Create Date: 2024-10-21 11:01:33.430522
+Revision ID: 0f2e8e876d60
+Revises: 
+Create Date: 2024-10-29 21:50:25.417673
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '6e71689c0637'
-down_revision = '53703e731af8'
+revision = '0f2e8e876d60'
+down_revision = None
 branch_labels = None
 depends_on = None
 
@@ -22,11 +22,17 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('bot_id', sa.String(length=120), nullable=False),
     sa.Column('meeting_url', sa.String(length=500), nullable=False),
+    sa.Column('meeting_name', sa.String(length=500), nullable=False),
+    sa.Column('meeting_type', sa.String(length=500), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('org_id', sa.Integer(), nullable=False),
-    sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('status', sa.String(length=50), nullable=True),
+    sa.Column('status_time', sa.DateTime(), nullable=True),
+    sa.Column('sub_code', sa.String(length=50), nullable=True),
+    sa.Column('message', sa.String(length=500), nullable=True),
+    sa.Column('recording_id', sa.String(length=120), nullable=True),
     sa.ForeignKeyConstraint(['org_id'], ['organization.id'], name='fk_botrecord_org_id'),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], name='fk_botrecord_user_id'),
     sa.PrimaryKeyConstraint('id')

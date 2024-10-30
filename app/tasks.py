@@ -264,7 +264,7 @@ def do_file_conversions(attendees_info, meeting_type, meeting_name, meeting_dura
 
 
 @app.task
-def process_recall_video(video_filepath, bot_id, user, org, meeting_name):
+def process_recall_video(video_filepath, bot_id, meeting_type, user, org, meeting_name):
     try:
         logger.info(f"Processing video for bot {bot_id}")
 
@@ -325,7 +325,7 @@ def process_recall_video(video_filepath, bot_id, user, org, meeting_name):
             username,
             org_name,
             org["org_id"],
-            type_name="Recall Meeting",
+            type_name=meeting_type,
             meeting_name=meeting_name_sanitized,
             user_id=user["user_id"],
             attendees=[user],  # Assuming attendees_info expects a list
