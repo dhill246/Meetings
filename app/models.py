@@ -81,7 +81,14 @@ class BotRecord(db.Model):
     org_id = db.Column(db.Integer, db.ForeignKey('organization.id', name='fk_botrecord_org_id'), nullable=False)  # Foreign key to Organization model
     created_at = db.Column(db.DateTime, default=datetime.now)  # Timestamp for when the bot was created
     updated_at = db.Column(db.DateTime, onupdate=datetime.now)  # Timestamp for updates
-    
+
+    # New Fields for Webhook Data
+    status = db.Column(db.String(50), nullable=True)  # Status code (e.g., "done", "error")
+    status_time = db.Column(db.DateTime, nullable=True)  # Time the status was updated
+    sub_code = db.Column(db.String(50), nullable=True)  # Sub-status code if provided
+    message = db.Column(db.String(500), nullable=True)  # Message from the webhook (optional)
+    recording_id = db.Column(db.String(120), nullable=True)  # Recording ID if available
+
     # Relationships
     user = db.relationship('User', backref='bot_records', lazy=True)  # Relationship to User
     organization = db.relationship('Organization', backref='bot_records', lazy=True)  # Relationship to Organization

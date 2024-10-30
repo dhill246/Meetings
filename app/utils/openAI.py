@@ -85,18 +85,39 @@ def transcribe_mp4(video_filepath):
         audio_filepath = video_filepath.replace('.mp4', '.wav')
 
         # Use ffmpeg to extract audio
-        subprocess.run([
-            "ffmpeg", "-i", video_filepath, "-vn", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_filepath
-        ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            subprocess.run([
+                "ffmpeg", "-i", video_filepath, "-vn", "-acodec", "pcm_s16le",
+                "-ar", "44100", "-ac", "2", audio_filepath
+            ], check=True)
+            logging.info(f"Audio extracted to {audio_filepath}")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"ffmpeg failed to extract audio: {e}")
+            return ""
+
+        # Check if the audio file was created
+        if not os.path.isfile(audio_filepath) or os.path.getsize(audio_filepath) == 0:
+            logging.error(f"Audio file was not created or is empty: {audio_filepath}")
+            return ""
 
         # Transcribe the audio file using OpenAI's Whisper API
         with open(audio_filepath, "rb") as audio_file:
+            logging.info(f"Transcribing audio file {audio_filepath}")
             transcription = client.audio.transcriptions.create(
                 model="whisper-1",
-                file=audio_file
+                file=audio_file,
+                language="en"
             )
 
+        # Log the API response
+        logging.info(f"Transcription response: {transcription}")
+
+        # Get the transcription text
         transcription_text = transcription.text
+
+        if not transcription_text:
+            logging.error(f"No transcription text returned for {audio_filepath}")
+            return ""
 
         # Optionally, delete the audio file after transcription
         os.remove(audio_filepath)
@@ -104,7 +125,7 @@ def transcribe_mp4(video_filepath):
         return transcription_text
 
     except OpenAIError as e:
-        logging.error(f"Error transcribing MP4 file {video_filepath}: {e}")
+        logging.error(f"OpenAI API error while transcribing {audio_filepath}: {e}")
         return ""
 
     except Exception as e:

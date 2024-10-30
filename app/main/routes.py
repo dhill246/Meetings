@@ -8,6 +8,7 @@ from functools import wraps
 import logging
 import os
 import requests
+from svix.webhooks import Webhook, WebhookVerificationError
 from botocore.exceptions import ClientError
 from bson import ObjectId
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
@@ -1098,7 +1099,6 @@ def start_meeting_bot():
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
-    role = claims['sub']['role']
 
     if not org_id or not user_id:
         print("Please log in to access this route.")
@@ -1138,9 +1138,10 @@ def start_meeting_bot():
         # Make the POST request to the external API
         response = requests.post(url, json=payload, headers=headers)
         response_data = response.json()
+        print(f"THE CODE IS: {response.status_code}")
 
         # Check if the request was successful
-        if response.status_code == 200:
+        if response.status_code == 200 or response.status_code == 201:
             bot_id = response_data.get("bot_id")
             logging.info(f"Bot with id {bot_id} has been successfully created.")
 
@@ -1151,15 +1152,20 @@ def start_meeting_bot():
                 meeting_url=meeting_url,
                 meeting_name=meeting_name,
                 status="pending",
+                status_time=datetime.now(),  # Initialize with current time
+                sub_code=None,              # Can be updated later by webhook
+                message=None,               # Can be updated later by webhook
+                recording_id=None,          # Can be updated later by webhook
                 org_id=org_id,
             )
 
             db.session.add(new_bot_record)
             db.session.commit()
 
-            return jsonify({"status": "Bot started successfully", "data": response_data}), 200
+            return jsonify({"status": "Bot started successfully. Please give the bot up to 30 seconds to join your meeting.", "data": response_data}), 200
 
         else:
+            print(f"Failed to start bot: {response_data}.")
             return jsonify({"status": "Failed to start bot", "data": response_data}), response.status_code
 
     except Exception as e:
@@ -1170,9 +1176,15 @@ def webhook():
     """
     Listener to receive updates from Recall meeting bot.
     """
-    # TODO - Update the model for BotRecord in db to include the necessary fields
-
+    headers = request.headers
+    payload = request.get_data(as_text=True)  # Retrieve raw body text for verification
+    WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+    
     try:
+        # Verify the webhook using the secret key
+        wh = Webhook(WEBHOOK_SECRET)
+        wh.verify(payload, headers)
+
         # Extract the JSON payload from the incoming request
         data = request.json
 
@@ -1278,18 +1290,35 @@ def retrieve_bot(bot_id):
                     logging.info(f"Video for bot {bot_id} downloaded and saved as {video_filepath}")
 
                     # Update the bot_record with the video file path
-                    bot_record.video_file_path = video_filepath  # Ensure this field exists in your model
+                    bot_record.video_file_path = video_filepath
+
+                    user_id = bot_record.user_id
+                    org_id = bot_record.org_id
 
                     db.session.commit()
+
+                    user = User.query.filter_by(id=user_id).first()
+                    org = Organization.query.filter_by(id=org_id).first()
+
+
+                    attendees_info = {
+                        "first_name": user.first_name,
+                        "last_name": user.last_name,
+                        "email": user.email,
+                        "user_id": user.id,
+                        "role": "Manager"
+                    }
+
+                    org_info = {"name": org.name,
+                                "org_id": org.id}
 
                     # Call the Celery task to process the video
                     process_recall_video.delay(
                         video_filepath=video_filepath,
                         bot_id=bot_id,
-                        user_id=bot_record.user_id,
-                        meeting_url=bot_record.meeting_url,
-                        meeting_name=bot_record.meeting_name,
-                        org_id=bot_record.org_id
+                        user=attendees_info,
+                        org=org_info,
+                        meeting_name=bot_record.meeting_name
                     )
 
                 else:
@@ -1353,3 +1382,78 @@ def get_employees_by_manager():
             })
 
     return jsonify({"reports": reports_list}), 200
+
+@main.route("/api/test", methods=["GET"])
+def test():
+    
+    import requests
+
+    api_key = os.getenv("RECALL_API_KEY")  # Ensure this is set in your environment
+
+    headers = {
+        "accept": "application/json",
+        "Authorization": api_key
+    }
+
+    bot_id = "9cc615ea-3b51-48c2-8f2b-95d6d5ebead1"
+
+    url = f"https://us-west-2.recall.ai/api/v1/bot/{bot_id}"
+
+    # Make the GET request to retrieve bot data
+    response = requests.get(url, headers=headers)
+    response_data = response.json()
+
+    video_url = response_data.get("video_url")
+
+    if video_url:
+                # Download the video from the 'video_url'
+        video_response = requests.get(video_url, stream=True)
+
+        if video_response.status_code == 200:
+            # Define the file path where you want to save the video
+            # You can customize the directory and filename as needed
+            video_filename = f"{bot_id}.mp4"
+            video_filepath = os.path.join('videos', video_filename)  # Ensure 'videos' directory exists
+
+            # Create the 'videos' directory if it doesn't exist
+            os.makedirs(os.path.dirname(video_filepath), exist_ok=True)
+
+            # Download and save the video file in chunks
+            with open(video_filepath, 'wb') as f:
+                for chunk in video_response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            
+            attendees_info = {
+                        "first_name": "Daniel",
+                        "last_name": "Hill",
+                        "email": "danielthill23@gmail.com",
+                        "user_id": 167,
+                        "role": "Manager"
+                    }
+
+            org_info = {"name": "BlenderProducts",
+                        "org_id": 1}
+    
+            # Call the Celery task to process the video
+            process_recall_video.delay(
+                video_filepath=video_filepath,
+                bot_id=bot_id,
+                user=attendees_info,
+                org=org_info,
+                meeting_name="Teams/Zoom Meeting"
+            )
+            
+            return jsonify({"success": "Call successful"}), 200
+
+        else:
+            print(f"Vid status code: {video_response.status_code}")
+            
+            return jsonify({"error": "Call was not successful, vid status code"}), 404
+
+
+    else:
+        print("No vid url")
+
+        return jsonify({"error": "Call was not successful, no vid url"}), 404
+

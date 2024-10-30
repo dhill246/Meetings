@@ -10,11 +10,13 @@ from app.utils.JoinTranscriptions import combine_text_files, json_to_word
 from app.utils.s3_utils import upload_file_to_s3, download_file, list_files, delete_from_s3
 from app.utils.Emails import send_email_to_user
 from dotenv import load_dotenv
+from moviepy.editor import VideoFileClip
 from app.models import Organization, User, BotRecord, db
 import json
-# from moviepy.editor import VideoFileClip
+import re
 from datetime import datetime
 load_dotenv()
+import sys
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -71,7 +73,6 @@ def get_video_duration(video_filepath):
     except Exception as e:
         logger.error(f"Error getting duration of video {video_filepath}: {e}")
         return 0
-
 
 @app.task
 def dummy_task():
@@ -262,86 +263,46 @@ def do_file_conversions(attendees_info, meeting_type, meeting_name, meeting_dura
             logger.error(f"Error during file conversion process: {e}")
 
 
-@worker_shutdown.connect
-def worker_shutdown_handler(**kwargs):
-    # Add your cleanup code here
-    app.control.shutdown()  # Gracefully shutdown Celery
-    os._exit(0)  # Force exit to ensure all connections are closed
-
-if __name__ == "__main__":
-    def manually_process_one(manager_firstname,
-                             manager_lastname,
-                             manager_email,
-                             manager_id,
-                            #  report_firstname,
-                            #  report_lastname,
-                            #  report_email,
-                            #  report_id,
-                             duration,
-                             date):
-        
-        # For processing a 1:1
-        attendees_info = [
-                    {"first_name": manager_firstname, 
-                    "last_name": manager_lastname, 
-                    "email": manager_email,
-                    "user_id": manager_id,
-                    "role": "Manager"},
-
-                    # {"first_name": report_firstname,
-                    # "last_name": report_lastname,
-                    # "email": report_email,
-                    # "user_id": report_id,
-                    # "role": "Report"}
-                ]
-        
-        meeting_type = "Daniel's Test Gen Meeting"
-        meeting_name = "Daniel's Test Gen Meeting"
-
-        do_file_conversions(attendees_info, meeting_type, meeting_name, duration, date, "BlenderProducts", 1)
-
-
-
-    manually_process_one("Daniel", "Hill", "danielthill23@gmail.com", 167, " 0h 0m 5s", "10-12-2024")
-
 @app.task
-def process_recall_video(video_filepath, bot_id, user_id, meeting_url, meeting_name, org_id):
+def process_recall_video(video_filepath, bot_id, user, org, meeting_name):
     try:
         logger.info(f"Processing video for bot {bot_id}")
 
-        # Retrieve user and organization info from the database
-        user = User.query.filter_by(id=user_id).first()
-        org = Organization.query.filter_by(id=org_id).first()
+        org_name = org["name"]
 
-        if not user or not org:
-            logger.error(f"User or organization not found for bot {bot_id}")
-            return
+        # Function to sanitize filenames and directory names
+        def sanitize_filename(s):
+            return re.sub(r'[<>:"/\\|?*]', '_', s)
 
-        org_name = org.name
+        # Sanitize 'username' and 'meeting_name' for use in file paths
+        username = sanitize_filename(f"{user['first_name']} {user['last_name']}")
+        meeting_name_sanitized = sanitize_filename(meeting_name)
+        date = datetime.now().strftime('%Y-%m-%d')
 
-        # Prepare attendees info for processing
-        attendees_info = [
-            {
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "email": user.email,
-                "user_id": user.id,
-                "role": "Manager"
-            },
-        ]
+        # Create a temporary working directory
+        tmp_folder = f"tmp_{username}"
+        os.makedirs(tmp_folder, exist_ok=True)
 
+        # Copy the video file into the temporary directory
+        video_folder = os.path.join(tmp_folder, 'video_files')
+        os.makedirs(video_folder, exist_ok=True)
+        video_filename = os.path.basename(video_filepath)
+        tmp_video_filepath = os.path.join(video_folder, video_filename)
+
+        shutil.copy2(video_filepath, tmp_video_filepath)
+        logger.info(f"Copied video file to {tmp_video_filepath}")
+
+        # Now, use the video file from the temporary directory
         # Transcribe the MP4 file
-        transcription_text = transcribe_mp4(video_filepath)
+        transcription_text = transcribe_mp4(tmp_video_filepath)
 
         if not transcription_text:
-            logger.error(f"No transcription text obtained for video {video_filepath}")
+            logger.error(f"No transcription text obtained for video {tmp_video_filepath}")
             return
 
-        # Save transcription text to a file
-        username = f"{user.first_name} {user.last_name}"
-        date = datetime.now().strftime('%Y-%m-%d')
-        output_filename = f"{username}_{meeting_name}_{date}.txt"
-        transcription_folder = os.path.join('transcriptions', username, date)
+        # Save transcription text to a file within the temporary directory
+        output_filename = f"{username}_{meeting_name_sanitized}_{date}.txt"
+        transcription_folder = os.path.join(tmp_folder, 'transcribed_chunks', username, meeting_name_sanitized, date)
         os.makedirs(transcription_folder, exist_ok=True)
         transcription_filepath = os.path.join(transcription_folder, output_filename)
 
@@ -350,23 +311,29 @@ def process_recall_video(video_filepath, bot_id, user_id, meeting_url, meeting_n
 
         logger.info(f"Transcription saved to {transcription_filepath}")
 
+        # Prepare raw text path
+        raw_text_folder = os.path.join(tmp_folder, 'joined_text')
+        os.makedirs(raw_text_folder, exist_ok=True)
+        raw_text_path = os.path.join(raw_text_folder, output_filename)
+        shutil.copyfile(transcription_filepath, raw_text_path)
+
         # Generate meeting summary
-        meeting_duration = get_video_duration(video_filepath)
+        meeting_duration = get_video_duration(tmp_video_filepath)
         json_data = summarize_meeting_improved(
-            transcription_filepath,
+            raw_text_path,
             output_filename,
             username,
             org_name,
-            org_id,
-            meeting_type="Recall Meeting",
-            meeting_name=meeting_name,
-            user_id=user_id,
-            attendees_info=attendees_info,
+            org["org_id"],
+            type_name="Recall Meeting",
+            meeting_name=meeting_name_sanitized,
+            user_id=user["user_id"],
+            attendees=[user],  # Assuming attendees_info expects a list
             meeting_duration=meeting_duration
         )
 
-        # Save the summary JSON data
-        summarized_meeting_folder = os.path.join('summaries', username, date)
+        # Save the summary JSON data within the temporary directory
+        summarized_meeting_folder = os.path.join(tmp_folder, 'summarized_meeting')
         os.makedirs(summarized_meeting_folder, exist_ok=True)
         summarized_meeting_filepath = os.path.join(summarized_meeting_folder, output_filename.replace('.txt', '.json'))
 
@@ -376,27 +343,39 @@ def process_recall_video(video_filepath, bot_id, user_id, meeting_url, meeting_n
         logger.info(f"Meeting summary saved to {summarized_meeting_filepath}")
 
         # Generate Word document from the summary
-        meeting_title = f"{meeting_name} on {date}"
+        meeting_title = f"{meeting_name_sanitized} on {date}"
         word_doc_path = json_to_word(summarized_meeting_filepath, username, json_data, meeting_title)
 
         logger.info(f"Word document created at {word_doc_path}")
 
         # Send email to the user with the Word document
-        send_email_to_user(word_doc_path, meeting_title, user.email)
+        send_email_to_user(word_doc_path, meeting_title, user["email"])
 
-        logger.info(f"Email sent to {user.email} with the meeting summary")
+        logger.info(f"Email sent to {user['email']} with the meeting summary")
 
-        # Update bot_record status in the database
-        bot_record = BotRecord.query.filter_by(bot_id=bot_id).first()
-        if bot_record:
-            bot_record.processed = True  # Ensure this field exists in your model
-            db.session.commit()
+        # Upload raw text to S3
+        upload_path = "Transcription_" + output_filename
+        upload_file_to_s3(raw_text_path, upload_path)
+        logger.info(f"Successfully uploaded: {raw_text_path} to S3 as {upload_path}.")
 
-        # Clean up files if necessary
+        # Upload summarized text to S3
+        upload_path = "Summary_" + output_filename
+        upload_file_to_s3(summarized_meeting_filepath, upload_path)
+        logger.info(f"Successfully uploaded: {summarized_meeting_filepath} to S3 as {upload_path}.")
+
+        # Clean up the temporary working directory
+        logger.info(f"Attempting to delete {tmp_folder} folder:")
+        safe_delete_folder(tmp_folder)
+        logger.info(f"Successfully deleted {tmp_folder} folder.")
+
+        # Optionally delete the original video file if no longer needed
         # os.remove(video_filepath)
-        # os.remove(transcription_filepath)
-        # os.remove(summarized_meeting_filepath)
-        # os.remove(word_doc_path)
 
     except Exception as e:
         logger.error(f"Error processing video for bot {bot_id}: {e}")
+
+@worker_shutdown.connect
+def worker_shutdown_handler(**kwargs):
+    # Add your cleanup code here
+    app.control.shutdown()  # Gracefully shutdown Celery
+    os._exit(0)  # Force exit to ensure all connections are closed
