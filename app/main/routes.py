@@ -1317,63 +1317,46 @@ def retrieve_bot(bot_id):
             video_url = response_data.get("video_url")
             
             if video_url:
+
                 video_filename = f"{bot_id}.mp4"
+
                 video_filepath = os.path.join("videos", video_filename)  # Ensure 'videos' directory exists
 
-                # Create the 'videos' directory if it doesn't exist
-                os.makedirs(os.path.dirname(video_filepath), exist_ok=True)
+                # Update the bot_record with the video file path
+                bot_record.video_file_path = video_filepath
 
-                # Download the video from the 'video_url'
-                video_response = requests.get(video_url, stream=True)
+                user_id = bot_record.user_id
+                org_id = bot_record.org_id
+                meeting_type = bot_record.meeting_type
 
-                print(f"Got video url for bot {bot_id}: {video_url}")
+                db.session.commit()
 
-                if video_response.status_code == 200:
-            
-                    # Download and save the video file in chunks
-                    with open(video_filepath, 'wb') as f:
-                        for chunk in video_response.iter_content(chunk_size=8192):
-                            if chunk:
-                                f.write(chunk)
-
-                    print(f"Video for bot {bot_id} downloaded and saved as {video_filepath}")
-
-                    # Update the bot_record with the video file path
-                    bot_record.video_file_path = video_filepath
-
-                    user_id = bot_record.user_id
-                    org_id = bot_record.org_id
-                    meeting_type = bot_record.meeting_type
-
-                    db.session.commit()
-
-                    user = User.query.filter_by(id=user_id).first()
-                    org = Organization.query.filter_by(id=org_id).first()
+                user = User.query.filter_by(id=user_id).first()
+                org = Organization.query.filter_by(id=org_id).first()
 
 
-                    attendees_info = {
-                        "first_name": user.first_name,
-                        "last_name": user.last_name,
-                        "email": user.email,
-                        "user_id": user.id,
-                        "role": "Manager"
-                    }
+                attendees_info = {
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "email": user.email,
+                    "user_id": user.id,
+                    "role": "Manager"
+                }
 
-                    org_info = {"name": org.name,
-                                "org_id": org.id}
+                org_info = {"name": org.name,
+                            "org_id": org.id}
 
-                    # Call the Celery task to process the video
-                    process_recall_video.delay(
-                        video_filepath=video_filepath,
-                        bot_id=bot_id,
-                        meeting_type=meeting_type,
-                        user=attendees_info,
-                        org=org_info,
-                        meeting_name=bot_record.meeting_name
-                    )
+                # Call the Celery task to process the video
+                process_recall_video.delay(
+                    video_filepath=video_filepath,
+                    bot_id=bot_id,
+                    video_url=video_url,
+                    meeting_type=meeting_type,
+                    user=attendees_info,
+                    org=org_info,
+                    meeting_name=bot_record.meeting_name
+                )
 
-                else:
-                    logging.error(f"Failed to download video for bot {bot_id}. Status code: {video_response.status_code}")
             else:
                 logging.warning(f"No video_url available for bot {bot_id} at this time.")
 
