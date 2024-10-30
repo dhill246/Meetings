@@ -14,6 +14,7 @@ from moviepy.editor import VideoFileClip
 from app.models import Organization, User, BotRecord, db
 import json
 import re
+import requests
 from datetime import datetime
 load_dotenv()
 import sys
@@ -264,8 +265,27 @@ def do_file_conversions(attendees_info, meeting_type, meeting_name, meeting_dura
 
 
 @app.task
-def process_recall_video(video_filepath, bot_id, meeting_type, user, org, meeting_name):
+def process_recall_video(video_filepath, bot_id, video_url, meeting_type, user, org, meeting_name):
     try:
+
+        video_filename = f"{bot_id}.mp4"
+        video_filepath = os.path.join("videos", video_filename)  # Ensure 'videos' directory exists
+
+        # Create the 'videos' directory if it doesn't exist
+        os.makedirs(os.path.dirname(video_filepath), exist_ok=True)
+
+
+        # Download the video from the 'video_url'
+        video_response = requests.get(video_url, stream=True)
+
+        # Download and save the video file in chunks
+        with open(video_filepath, 'wb') as f:
+            for chunk in video_response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+        print(f"Video for bot {bot_id} downloaded and saved as {video_filepath}")
+
         logger.info(f"Processing video for bot {bot_id}")
 
         org_name = org["name"]
