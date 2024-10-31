@@ -113,47 +113,86 @@ def get_oneonone_meetings(meeting_type, org_name, org_id, attendee_info, collect
 
     return results
 
-def get_all_manager_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
+def get_all_employee_meetings(org_name, org_id, days, attendee_info, collection_name="Meetings"):
     """
-    Get all meetings held by a specific manager, regardless of type.
-    """
-
-    manager_id = attendee_info["manager_id"]
-
-    database = client[org_name]
-    collection = database[collection_name]
-    
-    results = collection.find({
-        "org_id": org_id,
-        "attendees": {
-            "$elemMatch": {
-                "user_id": manager_id,
-                "role": "Manager"
-            }
-        }
-    })
-
-    return list(results)
-
-def get_all_employee_meetings(org_name, org_id, attendee_info, collection_name="Meetings"):
-    """
-    Get all meetings with a specific employee (one-on-ones), where they were the direct report.
+    Get all one-on-one meetings with a specific employee as a direct report
+    within the last 'days' days, returning only specific fields.
     """
 
     employee_id = attendee_info["employee_id"]
+    
+    # Calculate the cutoff date
+    cutoff_date = datetime.now() - timedelta(days=days)
 
+    print()
+
+    # Connect to the database and collection
     database = client[org_name]
     collection = database[collection_name]
     
-    results = collection.find({
-        "org_id": org_id,
-        "attendees": {
-            "$elemMatch": {
-                "user_id": employee_id,
-                "role": "Report"
+    # Query with both the attendee and date filter, using a projection
+    results = collection.find(
+        {
+            "org_id": org_id,
+            "attendees": {
+                "$elemMatch": {
+                    "user_id": employee_id,
+                    "role": "Report"
+                }
+            },
+            "date": {
+                "$gte": cutoff_date
             }
+        },
+        {
+            "type_name": 1,
+            "meeting_duration": 1,
+            "attendees": 1,
+            "date": 1,
+            "raw_text": 1
         }
-    })
+    )
+
+    return list(results)
+
+
+def get_all_manager_meetings(org_name, org_id, days, attendee_info, collection_name="Meetings"):
+    """
+    Get all meetings held by a specific manager, regardless of type, within the last 'days' days,
+    returning only specific fields.
+    """
+
+    manager_id = attendee_info["manager_id"]
+    
+    # Calculate the cutoff date
+    cutoff_date = datetime.now() - timedelta(days=days)
+
+    # Connect to the database and collection
+    database = client[org_name]
+    collection = database[collection_name]
+    
+    # Query with both the attendee and date filter, using a projection
+    results = collection.find(
+        {
+            "org_id": org_id,
+            "attendees": {
+                "$elemMatch": {
+                    "user_id": manager_id,
+                    "role": "Manager"
+                }
+            },
+            "Date": {
+                "$gte": cutoff_date
+            }
+        },
+        {
+            "type_name": 1,
+            "meeting_duration": 1,
+            "attendees": 1,
+            "Date": 1,
+            "raw_text": 1
+        }
+    )
 
     return list(results)
 

@@ -68,12 +68,18 @@ def safe_delete_folder(folder_path, retries=3, delay=5):
 def get_video_duration(video_filepath):
     try:
         clip = VideoFileClip(video_filepath)
-        duration = clip.duration  # duration in seconds
+        duration = int(clip.duration)  # duration in seconds
         clip.close()
-        return duration
+
+        hours = duration // 3600
+        minutes = (duration % 3600) // 60
+        seconds = duration % 60
+
+        formatted_duration = f"{hours}h {minutes}m {seconds}s"
+        return formatted_duration
     except Exception as e:
         logger.error(f"Error getting duration of video {video_filepath}: {e}")
-        return 0
+        return "0h 0m 0s"
 
 @app.task
 def dummy_task():
@@ -131,9 +137,13 @@ def do_file_conversions(attendees_info, meeting_type, meeting_name, meeting_dura
                     temp_transcribed_folder = os.path.join(f"tmp_{username}", "transcribed_chunks")
                     
                     full_webm_path = os.path.join(temp_download_folder, user, report, date, file)
-                    transcribe_webm(full_webm_path, username)
-                    logger.info(f"Successfully transcribed file: {item} into text.")
+                    
+                    try:
+                        transcribe_webm(full_webm_path, username)
+                        print(f"Successfully transcribed file: {item} into text.")
 
+                    except ValueError as ve:
+                        print(f"Skipping {item}: {ve}")
 
                 input_folder = os.path.join(f"tmp_{username}", "transcribed_chunks", username, report, date)
                 output_file = f"{username}_{report}_{date}.txt"
@@ -215,8 +225,12 @@ def do_file_conversions(attendees_info, meeting_type, meeting_name, meeting_dura
                     temp_transcribed_folder = os.path.join(f"tmp_{username}", "transcribed_chunks")
                     
                     full_webm_path = os.path.join(temp_download_folder, user, report, date, file)
-                    transcribe_webm(full_webm_path, username)
-                    logger.info(f"Successfully transcribed file: {item} into text.")
+                    try:
+                        transcribe_webm(full_webm_path, username)
+                        print(f"Successfully transcribed file: {item} into text.")
+
+                    except ValueError as ve:
+                        print(f"Skipping {item}: {ve}")
 
 
                 input_folder = os.path.join(f"tmp_{username}", "transcribed_chunks", username, report, date)

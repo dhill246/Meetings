@@ -939,7 +939,7 @@ def chat_manager():
 
     messages = data.get('messages')
     employee_ids = data.get('selectedEmployees')
-
+    days = data.get('days')
 
     print(f"Messages: {messages}")
     print(f"Employees: {employee_ids}")
@@ -953,6 +953,7 @@ def chat_manager():
                                       user_id, 
                                       org_name, 
                                       org_id=org_id, 
+                                      days=days,
                                       employee_ids=employee_ids))
         
     except Exception as e:
@@ -1282,7 +1283,6 @@ def webhook():
         return jsonify({"error": str(e)}), 500
 
 
-
 def retrieve_bot(bot_id):
     """
     Function to be called after bot status is done. This retrieves the url 
@@ -1417,78 +1417,12 @@ def get_employees_by_manager():
 
     return jsonify({"reports": reports_list}), 200
 
-@main.route("/api/test", methods=["GET"])
-def test():
-    
-    import requests
+# @main.route("/api/test", methods=["GET"])
+# def test():
+#     bot_id = "3f59a18c-b2d7-4452-a4ec-3992d929d9a0"
+#     retrieve_bot(bot_id)
 
-    api_key = os.getenv("RECALL_API_KEY")  # Ensure this is set in your environment
+#     return jsonify({"test": "Test started successfully"}), 200
+ 
 
-    headers = {
-        "accept": "application/json",
-        "Authorization": api_key
-    }
-
-    bot_id = "9cc615ea-3b51-48c2-8f2b-95d6d5ebead1"
-
-    url = f"https://us-west-2.recall.ai/api/v1/bot/{bot_id}"
-
-    # Make the GET request to retrieve bot data
-    response = requests.get(url, headers=headers)
-    response_data = response.json()
-
-    video_url = response_data.get("video_url")
-
-    if video_url:
-
-        video_filename = f"{bot_id}.mp4"
-        video_filepath = os.path.join('videos', video_filename)  # Ensure 'videos' directory exists
-
-        os.makedirs(os.path.dirname(video_filepath), exist_ok=True)
-
-        # Download the video from the 'video_url'
-        video_response = requests.get(video_url, stream=True)
-
-        if video_response.status_code == 200:
-        
-            # Download and save the video file in chunks
-            with open(video_filepath, 'wb') as f:
-                for chunk in video_response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-
-            print(f"Video downloaded and saved to {video_filepath}")
-            
-            attendees_info = {
-                        "first_name": "Daniel",
-                        "last_name": "Hill",
-                        "email": "danielthill23@gmail.com",
-                        "user_id": 167,
-                        "role": "Manager"
-                    }
-
-            org_info = {"name": "BlenderProducts",
-                        "org_id": 1}
-    
-            # Call the Celery task to process the video
-            process_recall_video.delay(
-                video_filepath=video_filepath,
-                bot_id=bot_id,
-                user=attendees_info,
-                org=org_info,
-                meeting_name="Teams/Zoom Meeting"
-            )
-            
-            return jsonify({"success": "Call successful"}), 200
-
-        else:
-            print(f"Vid status code: {video_response.status_code}")
-            
-            return jsonify({"error": "Call was not successful, vid status code"}), 404
-
-
-    else:
-        print("No vid url")
-
-        return jsonify({"error": "Call was not successful, no vid url"}), 404
 
