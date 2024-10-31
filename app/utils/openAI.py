@@ -1,9 +1,11 @@
 from dotenv import load_dotenv
 from openai import OpenAI, OpenAIError
 import subprocess
+import math
 import os
 from pathlib import Path
 import time
+from pydub import AudioSegment
 from app.utils.mongo import get_prompts, add_meeting, get_meeting_data, get_all_one_on_ones, get_all_manager_meetings, get_general_meetings, get_all_employee_meetings
 import json
 from pydantic import create_model
@@ -19,6 +21,25 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"  # Customize log format
 )
 
+def get_audio_duration(file_path):
+    """Get the duration of an audio file using ffmpeg."""
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-i", file_path, "-f", "null", "-"],
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        # Search for duration in stderr output
+        for line in result.stderr.splitlines():
+            if "Duration" in line:
+                parts = line.split(",")[0]
+                time_str = parts.split("Duration:")[1].strip()
+                h, m, s = map(float, time_str.split(":"))
+                return h * 3600 + m * 60 + s
+    except Exception as e:
+        print(f"Failed to get duration: {e}")
+    return 0  # Return 0 if duration couldn't be found
+
 def create_meeting_summary_model(categories):
     fields = {}
     for category in categories:
@@ -33,6 +54,13 @@ client = OpenAI(api_key=API_KEY)
 def transcribe_webm(full_path, username):
 
     try:
+
+        # Check duration before transcription
+        duration = get_audio_duration(full_path)
+        if duration < 0.1:
+            print("Duration under 0.1.")
+            raise ValueError("Audio file is too short for transcription.")
+        
         # Attempt transcription
         with open(f"{full_path}", "rb") as audio_file:
             transcription = client.audio.transcriptions.create(
@@ -88,7 +116,7 @@ def transcribe_mp4(video_filepath):
         try:
             subprocess.run([
                 "ffmpeg", "-i", video_filepath, "-vn", "-acodec", "pcm_s16le",
-                "-ar", "44100", "-ac", "2", audio_filepath
+                "-ar", "44100", "-ac", "1", audio_filepath  # Use mono to reduce file size
             ], check=True)
             logging.info(f"Audio extracted to {audio_filepath}")
         except subprocess.CalledProcessError as e:
@@ -100,33 +128,50 @@ def transcribe_mp4(video_filepath):
             logging.error(f"Audio file was not created or is empty: {audio_filepath}")
             return ""
 
-        # Transcribe the audio file using OpenAI's Whisper API
-        with open(audio_filepath, "rb") as audio_file:
-            logging.info(f"Transcribing audio file {audio_filepath}")
-            transcription = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-                language="en"
-            )
+        # Split audio into chunks under 25MB
+        chunk_length_ms = 120 * 1000  # 2 minutes in milliseconds
+        audio = AudioSegment.from_wav(audio_filepath)
+        audio_duration_ms = len(audio)
+        num_chunks = math.ceil(audio_duration_ms / chunk_length_ms)
 
-        # Log the API response
-        logging.info(f"Transcription response: {transcription}")
+        transcriptions = []
 
-        # Get the transcription text
-        transcription_text = transcription.text
+        for i in range(num_chunks):
+            start_ms = i * chunk_length_ms
+            end_ms = min((i + 1) * chunk_length_ms, audio_duration_ms)
+            chunk = audio[start_ms:end_ms]
 
-        if not transcription_text:
-            logging.error(f"No transcription text returned for {audio_filepath}")
-            return ""
+            chunk_filename = f"{audio_filepath}_chunk_{i}.wav"
+            chunk.export(chunk_filename, format="wav")
+
+            # Transcribe the audio chunk
+            with open(chunk_filename, "rb") as audio_file:
+                logging.info(f"Transcribing audio chunk {chunk_filename}")
+                try:
+                    transcription = client.audio.transcriptions.create(
+                        model="whisper-1",
+                        file=audio_file,
+                        language="en"
+                    )
+
+                    transcriptions.append(transcription.text)
+                except OpenAIError as e:
+                    logging.error(f"OpenAI API error while transcribing {chunk_filename}: {e}")
+                    transcriptions.append("")
+                except Exception as e:
+                    logging.error(f"Unexpected error during transcription of {chunk_filename}: {e}")
+                    transcriptions.append("")
+
+            # Optionally, delete the chunk file after transcription
+            os.remove(chunk_filename)
+
+        # Combine all transcriptions
+        full_transcription = ' '.join(transcriptions)
 
         # Optionally, delete the audio file after transcription
         os.remove(audio_filepath)
 
-        return transcription_text
-
-    except OpenAIError as e:
-        logging.error(f"OpenAI API error while transcribing {audio_filepath}: {e}")
-        return ""
+        return full_transcription
 
     except Exception as e:
         logging.error(f"Error processing MP4 file {video_filepath}: {e}")
@@ -275,7 +320,7 @@ def summarize_meeting_improved(input_file, output_file, username, org_name, org_
 
 
 
-def generate_ai_reply(messages, user_id, org_name, org_id, employee_ids, manager_ids=None):
+def generate_ai_reply(messages, user_id, org_name, org_id, days, employee_ids, manager_ids=None):
 
     content = "Please help the user answer the question they ask using the following data. Answer the question thouroughly, but in as few sentences as possible. No bullet points or lists."
 
@@ -283,13 +328,13 @@ def generate_ai_reply(messages, user_id, org_name, org_id, employee_ids, manager
     if employee_ids:
         for employee_id in employee_ids:
             attendee_info = {"employee_id": employee_id}
-            emp_meetings = get_all_employee_meetings(org_name, org_id, attendee_info)
+            emp_meetings = get_all_employee_meetings(org_name, org_id, days, attendee_info)
             content += str(emp_meetings)
 
     if manager_ids:
         for manager_id in manager_ids:
             attendee_info = {"manager_id": manager_id}
-            man_meetings = get_all_manager_meetings(org_name, org_id, attendee_info)
+            man_meetings = get_all_manager_meetings(org_name, org_id, days, attendee_info)
             content += str(man_meetings)
 
     ai_messages = [

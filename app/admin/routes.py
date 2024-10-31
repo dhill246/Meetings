@@ -13,7 +13,7 @@ import logging
 from bson import ObjectId
 from ..utils.mongo import get_all_manager_meetings, get_one_on_ones, get_all_employee_meetings, fetch_prompts, update_prompts, add_new_meeting_type, delete_prompts, get_recent_meetings, delete_meeting
 
-@admin.route('/api/get_managers', methods=["GET"])
+@admin.route('/api/get_managers', methods=["POST"])
 @jwt_required()
 def get_managers():
     claims = verify_jwt_in_request()[1]
@@ -27,6 +27,9 @@ def get_managers():
     
     if not role == "admin":
         return jsonify({"msg": "Admins only!"}), 403
+    
+    data = request.get_json()
+    days = data.get('days', 30)  # Default to 30 days if not provided
     
     current_org = Organization.query.get(org_id)
     org_name = current_org.name
@@ -47,7 +50,7 @@ def get_managers():
         if manager.id == 167 or manager.id == 229:
             continue
 
-        meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, manager.id, role="Manager", days=30)
+        meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, manager.id, role="Manager", days=days)
 
         # Number of meetings in the past month divided by the number of direct reports
         num_meetings_in_past_month = len(meetings_in_past_x_days)
@@ -73,7 +76,7 @@ def get_managers():
 
     return jsonify({"current_user": int(current_user.get_id()), "managers": managers}), 200
 
-@admin.route('/api/get_employees', methods=["GET"])
+@admin.route('/api/get_employees', methods=["POST"])
 @jwt_required()
 def get_employees():
     claims = verify_jwt_in_request()[1]
@@ -97,6 +100,9 @@ def get_employees():
     current_user = User.query.get(user_id)
     if not current_user:
         return jsonify({"error": "User not found"}), 404
+    
+    data = request.get_json()
+    days = data.get('days', 30)  # Default to 30 days if not provided
     
     # Alias the User table to represent the manager
     Manager = aliased(User)
@@ -130,7 +136,7 @@ def get_employees():
         
         if em.report_id not in employees_dict:
             # Fetch meetings data
-            meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, em.report_id, role="Report", days=30)
+            meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, em.report_id, role="Report", days=days)
 
             # Number of meetings in the past month
             num_meetings_in_past_month = len(meetings_in_past_x_days)
@@ -809,10 +815,7 @@ def chat_admin():
     messages = data.get('messages')
     employee_ids = data.get('selectedEmployees')
     manager_ids = data.get('selectedManagers')
-
-    logging.info(f"Messages: {messages}")
-    logging.info(f"Employees: {employee_ids}")
-    logging.info(f"Managers: {manager_ids}")
+    days = data.get('days')
 
     if not messages:
         return jsonify({"error": "Missing 'messages' in request"}), 400
@@ -822,7 +825,8 @@ def chat_admin():
         reply = str(generate_ai_reply(messages, 
                                       user_id, 
                                       org_name, 
-                                      org_id=org_id, 
+                                      org_id=org_id,
+                                      days=days, 
                                       employee_ids=employee_ids, 
                                       manager_ids=manager_ids))
 
