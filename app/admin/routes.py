@@ -103,12 +103,13 @@ def get_employees():
     
     data = request.get_json()
     days = data.get('days', 30)  # Default to 30 days if not provided
+    manager_id = data.get('managerId', None)  # Get managerId from payload if provided
     
     # Alias the User table to represent the manager
     Manager = aliased(User)
 
     # Query to get employees and their manager's id, first name, and last name
-    employees_managers = (
+    employees_managers_query = (
         db.session.query(
             User.id.label("report_id"),
             User.first_name.label("employee_first_name"),
@@ -121,11 +122,15 @@ def get_employees():
         .join(Reports, Reports.report_id == User.id)  # Join to get the reports relationship
         .join(Manager, Reports.manager_id == Manager.id)  # Join the User table again for manager info
         .filter(User.organization_id == org_id)
-        .all()
     )
-    
-    print(employees_managers)  # For debugging purposes
 
+    # Conditionally add the filter for manager_id
+    if manager_id is not None:
+        employees_managers_query = employees_managers_query.filter(Reports.manager_id == manager_id)
+
+    # Execute the query
+    employees_managers = employees_managers_query.all()
+        
     # Use a dictionary to aggregate managers per employee
     employees_dict = {}
     
