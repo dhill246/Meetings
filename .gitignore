@@ -2,4 +2,5 @@
 .env
 __pycache__
 qgtunnel-latest
-meeting_summary.log
+./meeting_summary.log
+BlenderTranscriptionProject/meeting_summary.log
