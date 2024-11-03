@@ -1420,7 +1420,6 @@ def get_employees_by_manager():
     if not direct_reports:
         return jsonify({"reports": []}), 200
 
-
     # Prepare the list of direct reports
     reports_list = []
     for report in direct_reports:
