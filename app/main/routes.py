@@ -12,7 +12,7 @@ from svix.webhooks import Webhook, WebhookVerificationError
 from botocore.exceptions import ClientError
 from bson import ObjectId
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
-from ..utils.mongo import get_meeting_by_id, fetch_meeting_types, get_general_meetings, get_oneonone_meetings, fetch_personal_prompts, fetch_prompts, add_new_meeting_type, update_prompts, delete_prompts, get_one_on_ones, update_notes
+from ..utils.mongo import get_meeting_by_id, fetch_meeting_types, get_general_meetings, get_oneonone_meetings, fetch_personal_prompts, fetch_prompts, add_new_meeting_type, update_prompts, delete_prompts, get_one_on_ones, update_notes, get_meetings_last_month
 from ..utils.openAI import generate_ai_reply
 from ..tasks import process_recall_video
 
@@ -1366,7 +1366,7 @@ def retrieve_bot(bot_id):
     except Exception as e:
         logging.error(f"Error retrieving bot {bot_id}: {e}")
 
-@main.route("/api/get_employees_by_manager", methods=["GET"])
+@main.route("/api/get_employees_by_manager", methods=["POST"])
 @jwt_required()
 def get_employees_by_manager():
     """
@@ -1393,26 +1393,50 @@ def get_employees_by_manager():
             ]
         }
     """
+
     claims = verify_jwt_in_request()[1]
-    manager_id = claims['sub']['user_id']  # Extract the manager's user ID from the token
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+
+    if not org_id or not user_id:
+        print("Please log in to access this route.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+        
+    current_user = User.query.get(user_id)
+    if not current_user:
+        return jsonify({"error": "User not found"}), 404
+    
+    current_org = Organization.query.get(org_id)
+    org_name = current_org.name
+
+        # Accept 'days' from the request data
+    data = request.get_json()
+    days = data.get('days', 30)  # Default to 30 days if not provided
 
     # Query the Reports model for all direct reports of this manager
-    direct_reports = Reports.query.filter_by(manager_id=manager_id).all()
+    direct_reports = Reports.query.filter_by(manager_id=user_id).all()
 
     # If no direct reports are found, return an empty list
     if not direct_reports:
         return jsonify({"reports": []}), 200
+
 
     # Prepare the list of direct reports
     reports_list = []
     for report in direct_reports:
         report_user = User.query.get(report.report_id)
         if report_user:
+            # Calculate num_meetings for this report
+            meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, user_id, role="Manager", days=days)
+
+            num_meetings = len(meetings_in_past_x_days)
+
             reports_list.append({
                 "id": report_user.id,
                 "first_name": report_user.first_name,
                 "last_name": report_user.last_name,
-                "email": report_user.email
+                "email": report_user.email,
+                "num_meetings": num_meetings
             })
 
     return jsonify({"reports": reports_list}), 200

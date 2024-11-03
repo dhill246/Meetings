@@ -25,15 +25,16 @@ def get_audio_duration(file_path):
     """Get the duration of an audio file using ffmpeg."""
     try:
         result = subprocess.run(
-            ["ffmpeg", "-i", file_path, "-f", "null", "-"],
+            ["ffmpeg", "-i", file_path],
             stderr=subprocess.PIPE,
             text=True
         )
         # Search for duration in stderr output
         for line in result.stderr.splitlines():
             if "Duration" in line:
-                parts = line.split(",")[0]
-                time_str = parts.split("Duration:")[1].strip()
+                # Extract time string after 'Duration: '
+                time_str = line.split("Duration:")[1].split(",")[0].strip()
+                # Split into hours, minutes, seconds
                 h, m, s = map(float, time_str.split(":"))
                 return h * 3600 + m * 60 + s
     except Exception as e:
