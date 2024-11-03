@@ -16,7 +16,6 @@ import logging
 
 # Set up logging
 logging.basicConfig(
-    filename="meeting_summary.log",  # Log output to a file
     level=logging.DEBUG,  # Set the level of logging to DEBUG
     format="%(asctime)s - %(levelname)s - %(message)s"  # Customize log format
 )
