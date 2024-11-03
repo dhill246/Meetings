@@ -16,8 +16,7 @@ import logging
 
 # Set up logging
 logging.basicConfig(
-    level=logging.DEBUG,  # Set the level of logging to DEBUG
-    format="%(asctime)s - %(levelname)s - %(message)s"  # Customize log format
+    level=logging.INFO,  # Set the level of logging to DEBUG
 )
 
 def get_audio_duration(file_path):

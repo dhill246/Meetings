@@ -4,7 +4,7 @@ import logging
 # Create the Flask app using the factory function
 app = create_app()
 app.debug = True  # Enable debug mode
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 if __name__ == '__main__':
     socketio.run(app, port=5000, debug=True)
