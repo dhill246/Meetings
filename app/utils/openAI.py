@@ -20,24 +20,24 @@ logging.basicConfig(
 )
 
 def get_audio_duration(file_path):
-    """Get the duration of an audio file using ffmpeg."""
     try:
-        result = subprocess.run(
-            ["ffmpeg", "-i", file_path],
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        # Search for duration in stderr output
-        for line in result.stderr.splitlines():
-            if "Duration" in line:
-                # Extract time string after 'Duration: '
-                time_str = line.split("Duration:")[1].split(",")[0].strip()
-                # Split into hours, minutes, seconds
-                h, m, s = map(float, time_str.split(":"))
-                return h * 3600 + m * 60 + s
+        # Load the audio file using pydub
+        audio = AudioSegment.from_file(file_path)
+        
+        # Get duration in seconds
+        duration = len(audio) / 1000  # pydub gives duration in milliseconds
+        return duration
+    
     except Exception as e:
-        print(f"Failed to get duration: {e}")
-    return 0  # Return 0 if duration couldn't be found
+        print(f"Error getting duration: {e}")
+        return 0  # Return 0 if there's an error, to skip the file
+    
+    except ValueError as e:
+        print(f"Could not convert duration to float: {e}")
+        return 0
+    except Exception as e:
+        print(f"Error getting duration: {e}")
+        return 0  # Return 0 if there's an error, to skip the file
 
 def create_meeting_summary_model(categories):
     fields = {}
