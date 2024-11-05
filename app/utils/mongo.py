@@ -124,8 +124,6 @@ def get_all_employee_meetings(org_name, org_id, days, attendee_info, collection_
     # Calculate the cutoff date
     cutoff_date = datetime.now() - timedelta(days=days)
 
-    print()
-
     # Connect to the database and collection
     database = client[org_name]
     collection = database[collection_name]
@@ -149,7 +147,8 @@ def get_all_employee_meetings(org_name, org_id, days, attendee_info, collection_
             "meeting_duration": 1,
             "attendees": 1,
             "date": 1,
-            "raw_text": 1
+            "raw_text": 1,
+            "summary": 1
         }
     )
 
@@ -523,9 +522,6 @@ def delete_meeting(org_name, org_id, meeting_id, role, collection_name="Meetings
 
 if __name__ == "__main__":
    
-    system_prompt, response_format = get_prompts(org_name="BlenderProducts",
-                                                 org_id=1,
-                                                 type_name="General Meeting",
-                                                 user_id=167)
-    
-    print(system_prompt, response_format)
+    my_list = get_all_employee_meetings("DemoOrganization", 999, 365,  {"employee_id": 1001})
+
+    print(my_list)
