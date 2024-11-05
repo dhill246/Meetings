@@ -38,6 +38,9 @@ def get_managers():
     if not current_user:
         return jsonify({"error": "User not found"}), 404
     
+    # TODO - Change this from checking for password being not none 
+    # to checking if role is equal to manager. Right now the only
+    # two roles are admin or default.
     managers_list_db = User.query.filter(
         User.organization_id == org_id,
         User.password_hash.isnot(None)
@@ -306,7 +309,9 @@ def get_employee(employee_id):
     
     attendee_info = {"employee_id": employee_id}
 
-    meetings = get_all_employee_meetings(org.name, org_id, attendee_info)
+    days=365
+
+    meetings = get_all_employee_meetings(org.name, org_id, days, attendee_info)
 
     meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "duration": m["meeting_duration"], "type": m["type_name"], "attendees": m["attendees"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
 
