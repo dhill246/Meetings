@@ -1426,9 +1426,11 @@ def get_employees_by_manager():
         report_user = User.query.get(report.report_id)
         if report_user:
             # Calculate num_meetings for this report
-            meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, user_id, role="Manager", days=days)
-
+            meetings_in_past_x_days = get_meetings_last_month(org_name, org_id, report_user.id, role="Report", days=days)
+            print(report_user.first_name)
             num_meetings = len(meetings_in_past_x_days)
+            print(num_meetings)
+
 
             reports_list.append({
                 "id": report_user.id,
