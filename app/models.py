@@ -11,6 +11,8 @@ class Organization(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(256))
+    plan = db.Column(db.String(100), nullable=True)
+    payment_status = db.Column(db.Boolean, default=False, nullable=True)
 
     # Relationship to the User model
     users = relationship('User', backref='organization', lazy=True)
@@ -25,7 +27,7 @@ class User(db.Model, UserMixin):
     last_name = db.Column(db.String(60), nullable=False)
     email = db.Column(db.String(120))
     password_hash = db.Column(db.String(256))
-    role = db.Column(db.String(60))
+    role = db.Column(db.String(60), default="default")
 
     # Foreign key
     organization_id = db.Column(db.Integer, db.ForeignKey("organization.id", name="fk_user_organization_id"), nullable=False)
@@ -60,6 +62,12 @@ class Invites(db.Model):
     # Foreign keys to link to the manager and report
     organization_id = db.Column(db.Integer, db.ForeignKey("organization.id", name="fk_user_organization_id"), nullable=True)
 
+class Free_Access_Invites(db.Model):
+    __tablename__ = 'free_access_invites'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), nullable=False)
+    token = db.Column(db.String(256), nullable=False)
+    date = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
 class Subscribers(db.Model, UserMixin):
     __tablename__ = 'subscribers'

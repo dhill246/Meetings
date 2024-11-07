@@ -7,6 +7,7 @@ import logging
 from .models import db, User
 from .utils.logger_setup import configure_logging
 from .main import main as main_blueprint
+from .super_admin import super_admin as super_blueprint
 from .auth import auth as auth_blueprint
 from .admin import admin as admin_blueprint
 from .marketing import marketing as marketing_blueprint
@@ -119,7 +120,7 @@ def create_app():
     app.register_blueprint(auth_blueprint)
     app.register_blueprint(admin_blueprint)
     app.register_blueprint(marketing_blueprint)
-
+    app.register_blueprint(super_blueprint)
 
     register_events(socketio)  # Register your socket.io event handlers
 

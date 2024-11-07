@@ -40,7 +40,7 @@ def send_invite_email(email, token, org_name):
     try:
 
         api_url = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages"
-        signup_url = f"meet.morphdatastrategies.com/auth/usersignup?token={token}"
+        signup_url = f"meet.morphdatastrategies.com/auth/joinorg?token={token}"
 
         return requests.post(
                 api_url,
@@ -66,12 +66,51 @@ def send_invite_email(email, token, org_name):
             }
         )
     
+def send_free_access_email(email, token):
+    logging.info(f"Sending free access invite email to {email}")
+    try:
+
+        api_url = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages"
+        signup_url = f"meet.morphdatastrategies.com/auth/freeaccess?token={token}"
+
+        return requests.post(
+                api_url,
+                auth=("api", MAILGUN_API_KEY),
+                data={
+                    "from": f"Daniel Hill <daniel@{MAILGUN_DOMAIN}>",
+                    "to": [email],
+                    "subject": f"Free Morph Platform Access",
+                    "text": f"""Thank you for being an early supporter of Morph Data Strategies.\n
+                    Here is your link to sign up for indefinite free access to the meeting platform: {signup_url}.\n
+                    I'm working hard to improve this product each day. If you have feedback, ideas, or encounter any problems, I'd appreciate you letting me know.\n
+
+                    Thanks again for your support, enjoy using the tool.\n
+                    
+                    Thank you,\n
+                    Daniel, Morph Data Strategies
+                    """
+                }
+            )
+        
+    except Exception as e:
+        logging.error(f"Failed to send invite to {email}. Token: {token}. Error: {e}")
+        return requests.post(
+            api_url,
+            auth=("api", MAILGUN_API_KEY),
+            data={
+                "from": f"Daniel Hill <daniel@{MAILGUN_DOMAIN}>",
+                "to": ["danielthill23@gmail.com"],  # Fallback email
+                "subject": "Failed to Send Invite",
+                "text": f"Failed to send invite to {email}. Token: {token}. Error: {e}"
+            }
+        )
+    
 def get_subscriber_email(email):
     logging.info(f"Getting email {email}")
     try:
 
         api_url = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages"
-        signup_url = f"meet.morphdatastrategies.com/auth/usersignup?token={token}"
+        signup_url = f"meet.morphdatastrategies.com/auth/usersignup?token="
 
         return requests.post(
                 api_url,

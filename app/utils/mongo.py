@@ -518,7 +518,41 @@ def delete_meeting(org_name, org_id, meeting_id, role, collection_name="Meetings
     else:
         logging.error("User does not have permission to delete meetings")
         return None
+    
 
+def mongo_org_setup(org_name, org_id):
+
+    # Get demo organization meeting types for copying to the new database
+    source_db = client["DemoOrganization"]
+    source_type_collection = source_db["MeetingTypes"]
+
+    # Setup new database and collections
+    new_db = client[org_name]
+    new_meeting_collection = new_db.create_collection("Meetings")
+    new_type_collection = new_db.create_collection("MeetingTypes")
+
+    # Get documents to transfer   
+    documents = list(source_type_collection.find())
+
+        # Update the org_id field in each document
+    for doc in documents:
+        doc["org_id"] = org_id  # Replace the org_id with the new value
+        # Remove the "_id" field to avoid duplicate key errors if not desired in the new collection
+        if "_id" in doc:
+            del doc["_id"]
+
+    if documents:
+        new_type_collection.insert_many(documents)
+
+        print(f"Inserted {len(documents)} documents into {new_type_collection.name}")
+    else:
+        print("No documents found in the source collection.")
+
+    
+    return "success"
+
+
+    
 
 if __name__ == "__main__":
    

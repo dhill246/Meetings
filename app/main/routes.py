@@ -636,6 +636,7 @@ def fetch_all_meeting_types():
     print("Fetching personal prompts: ", org.name, org_id, user_id)
     personal_prompts = fetch_prompts(org.name, org_id, scope=user_id)
     if personal_prompts is None:
+        print("No personal prompts found")
         personal_prompts = []
     else:
         personal_prompts = [
@@ -649,11 +650,14 @@ def fetch_all_meeting_types():
         ]
 
     # Combine the two lists
+    print("Combining prompts")
     all_prompts = company_prompts + personal_prompts
 
     if not all_prompts:
+        print("No prompts found")
         return jsonify({"error": "No prompts found"}), 404
     else:
+        print("Returning prompts")
         return jsonify({"prompts": all_prompts}), 200
 
     

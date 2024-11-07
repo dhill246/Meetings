@@ -1,7 +1,7 @@
 from . import admin
 from flask import jsonify, request
 from flask_jwt_extended import jwt_required, verify_jwt_in_request
-from ..models import Organization, User, db, Invites, Reports
+from ..models import Organization, User, db, Invites, Reports, Free_Access_Invites
 from sqlalchemy.orm import aliased
 from ..utils.mongo import get_meetings_last_month, duration_to_seconds
 from ..utils.Emails import send_invite_email
@@ -184,7 +184,6 @@ def get_employees():
 
     return jsonify({"current_user": int(current_user.get_id()), "employees": employees}), 200
 
-
 @admin.route('/api/send_invite', methods=["POST"])
 @jwt_required()
 def send_invite():
@@ -251,7 +250,6 @@ def verify_token():
     # If valid, return the organization ID associated with the invite
     org_id = invite.organization_id
     return jsonify({"valid": True, "org_id": org_id}), 200
-
 
 @admin.route('/api/manager/<int:manager_id>', methods=["GET"])
 @jwt_required()
