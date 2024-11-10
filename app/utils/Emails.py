@@ -68,10 +68,23 @@ def send_invite_email(email, token, org_name):
     
 def send_free_access_email(email, token):
     logging.info(f"Sending free access invite email to {email}")
+
     try:
 
         api_url = "https://api.mailgun.net/v3/" + MAILGUN_DOMAIN + "/messages"
         signup_url = f"meet.morphdatastrategies.com/auth/freeaccess?token={token}"
+
+
+        # Plain text version with minimal formatting issues
+        text_content = (
+            "Thank you for being an early supporter of Morph Data Strategies.\n\n"
+            "Here is your link to sign up for indefinite free access to the meeting platform: "
+            f"{signup_url}. This link will expire in 7 days.\n\n"
+            "If you have feedback, ideas, or encounter any problems, I'd love if you'd let me know.\n\n"
+            "I appreciate your support!\n\n"
+            "Thanks,\n\n"
+            "Daniel Hill"
+        )
 
         return requests.post(
                 api_url,
@@ -80,15 +93,7 @@ def send_free_access_email(email, token):
                     "from": f"Daniel Hill <daniel@{MAILGUN_DOMAIN}>",
                     "to": [email],
                     "subject": f"Free Morph Platform Access",
-                    "text": f"""Thank you for being an early supporter of Morph Data Strategies.\n
-                    Here is your link to sign up for indefinite free access to the meeting platform: {signup_url}.\n
-                    I'm working hard to improve this product each day. If you have feedback, ideas, or encounter any problems, I'd appreciate you letting me know.\n
-
-                    Thanks again for your support, enjoy using the tool.\n
-                    
-                    Thank you,\n
-                    Daniel, Morph Data Strategies
-                    """
+                    "text": text_content
                 }
             )
         
