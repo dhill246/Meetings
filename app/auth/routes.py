@@ -317,3 +317,5 @@ def verify_free_token():
     # If valid, return the email associated with the invite
     email = invite.email
     return jsonify({"valid": True, "email": email}), 200
+
+# Fake addition
