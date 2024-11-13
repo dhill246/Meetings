@@ -55,31 +55,46 @@ def create_app():
             "msg": "Token has expired",
             "next_step": "login"
         }), 401
+    
 
-    # Initialize CORS
+    # Initialize CORS with specific rules
     CORS(app, 
-         supports_credentials=True, 
-         resources={r"/api/*": {"origins": TRUSTED_DOMAIN},
+        supports_credentials=True, 
+        resources={r"/api/*": {"origins": TRUSTED_DOMAIN},
                     r"/api/webhook": {"origins": "*"}})
 
     @app.before_request
     def handle_options():
         if request.method == 'OPTIONS':
             response = jsonify({"status": "CORS preflight successful"})
-            response.headers["Access-Control-Allow-Origin"] = TRUSTED_DOMAIN
+            request_origin = request.headers.get("Origin")
+            
+            # Allow origin if it matches TRUSTED_DOMAIN or wildcard rule for webhooks
+            if request_origin == TRUSTED_DOMAIN or "/api/webhook" in request.path:
+                response.headers["Access-Control-Allow-Origin"] = request_origin
+            else:
+                response.headers["Access-Control-Allow-Origin"] = ""
+                
             response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
             response.headers["Access-Control-Allow-Credentials"] = "true"
             return response
 
-
     @app.after_request
     def add_cors_headers(response):
-        """Add CORS headers to all responses."""
-        response.headers["Access-Control-Allow-Origin"] = TRUSTED_DOMAIN
+        """Add CORS headers to all responses dynamically based on the request origin."""
+        request_origin = request.headers.get("Origin")
+
+        # Dynamically set the Access-Control-Allow-Origin if it matches the trusted domain
+        if request_origin == TRUSTED_DOMAIN:
+            response.headers["Access-Control-Allow-Origin"] = request_origin
+        else:
+            response.headers["Access-Control-Allow-Origin"] = ""
+            
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, OPTIONS, DELETE"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
+
     
     # Initialize csp
     # Talisman(app, content_security_policy=csp)
