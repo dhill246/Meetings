@@ -19,10 +19,12 @@ from flask_jwt_extended import JWTManager
 
 TRUSTED_DOMAIN = os.getenv('TRUSTED_DOMAIN')
 WEBHOOK_DOMAIN = os.getenv('WEBHOOK_DOMAIN')
+PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN')
+STAGING_DOMAIN = os.getenv('STAGING_DOMAIN ')
+CURRENT_ENV = os.getenv("FLASK_ENV")
 
 socketio = SocketIO(cors_allowed_origins=TRUSTED_DOMAIN,
                     async_mode='eventlet')  # Create the SocketIO instance globally
-
 
 # Configure CSP globally
 # csp = {
@@ -112,12 +114,13 @@ def create_app():
     @app.before_request
     def before_request():
 
-        if request.path == "/":  # Root URL
-            return redirect("https://meet.morphdatastrategies.com", code=301)
-        
+                # Redirect based on environment
         if "herokuapp" in request.host:
-            return redirect("https://meet.morphdatastrategies.com", code=301)
-
+            if CURRENT_ENV == "production":
+                return redirect(PRODUCTION_DOMAIN, code=301)
+            elif CURRENT_ENV == "staging":
+                return redirect(STAGING_DOMAIN, code=301)
+            
     # Set up basic logging output for the app
     # logging.basicConfig(level=logging.INFO)
 
