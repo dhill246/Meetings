@@ -69,8 +69,9 @@ def create_app():
             response = jsonify({"status": "CORS preflight successful"})
             request_origin = request.headers.get("Origin")
             
-            # Allow CORS only if request origin matches TRUSTED_DOMAIN
+            # Ensure only one origin is allowed
             if request_origin == TRUSTED_DOMAIN:
+                response.headers.clear()  # Clear any existing CORS headers
                 response.headers["Access-Control-Allow-Origin"] = request_origin
                 response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
                 response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
@@ -85,7 +86,7 @@ def create_app():
         """Add CORS headers to all responses dynamically based on the trusted domain."""
         request_origin = request.headers.get("Origin")
 
-        # Only allow the origin if it matches TRUSTED_DOMAIN
+        # Ensure only one origin is allowed
         if request_origin == TRUSTED_DOMAIN:
             response.headers["Access-Control-Allow-Origin"] = request_origin
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
