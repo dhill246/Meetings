@@ -4,3 +4,5 @@ __pycache__
 qgtunnel-latest
 ./meeting_summary.log
 BlenderTranscriptionProject/meeting_summary.log
+latest.dump
+schema.sql
