@@ -47,8 +47,8 @@ def create_meeting_summary_model(categories):
     MeetingSummary = create_model('MeetingSummary', **fields)
     return MeetingSummary
 
-API_KEY = os.getenv("API_KEY")
-client = OpenAI(api_key=API_KEY)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 def transcribe_webm(full_path, username):
 

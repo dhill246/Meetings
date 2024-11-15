@@ -5,10 +5,9 @@ from ..models import Organization, User, db, Invites, Reports, Free_Access_Invit
 from sqlalchemy.orm import aliased
 from ..utils.mongo import get_meetings_last_month, duration_to_seconds
 from ..utils.Emails import send_invite_email
-from ..utils.openAI import generate_ai_reply
+from ..utils.llm_interactions import generate_ai_reply
 import secrets
 from datetime import datetime
-from ..utils.openAI import generate_ai_reply_for_meeting
 import logging
 from bson import ObjectId
 from ..utils.mongo import get_all_manager_meetings, get_one_on_ones, get_all_employee_meetings, fetch_prompts, update_prompts, add_new_meeting_type, delete_prompts, get_recent_meetings, delete_meeting
@@ -276,10 +275,11 @@ def get_manager(manager_id):
     
     attendee_info = {"manager_id": manager_id}
 
-    meetings = get_all_manager_meetings(org.name, org_id, attendee_info)
+    meetings = get_all_manager_meetings(org.name, org_id, 365, attendee_info)
 
     meetings_list = [{"meeting_id": str(m["_id"]), "date": m["date"], "duration": m["meeting_duration"], "type": m["type_name"], "attendees": m["attendees"], "summary": m["summary"]["Meeting Summary"]} for m in meetings]
 
+    print(meetings_list)
     return jsonify({"manager": {"id": manager.id, "first_name": manager.first_name, "last_name": manager.last_name}, "meetings": meetings_list}), 200
 
 @admin.route('/api/employee/<int:employee_id>', methods=["GET"])
@@ -524,50 +524,50 @@ def get_most_recent_meetings():
 
     return jsonify({"meetings": meetings_list}), 200
 
-@admin.route('/api/test_prompt_chat', methods=['POST'])
-@jwt_required()
-def test_prompt_chat():
-    claims = verify_jwt_in_request()[1]
-    org_id = claims['sub']['org_id']
-    user_id = claims['sub']['user_id']
-    role = claims['sub']['role']
+# @admin.route('/api/test_prompt_chat', methods=['POST'])
+# @jwt_required()
+# def test_prompt_chat():
+#     claims = verify_jwt_in_request()[1]
+#     org_id = claims['sub']['org_id']
+#     user_id = claims['sub']['user_id']
+#     role = claims['sub']['role']
 
-    if not org_id or not user_id:
-        print("Please log in to access this route.")
-        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+#     if not org_id or not user_id:
+#         print("Please log in to access this route.")
+#         return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
     
-    if not role == "admin":
-        return jsonify({"msg": "Admins only!"}), 403
+#     if not role == "admin":
+#         return jsonify({"msg": "Admins only!"}), 403
         
-    current_user = User.query.get(user_id)
-    if not current_user:
-        return jsonify({"error": "User not found"}), 404
+#     current_user = User.query.get(user_id)
+#     if not current_user:
+#         return jsonify({"error": "User not found"}), 404
 
-    org = Organization.query.get(org_id)
+#     org = Organization.query.get(org_id)
 
-    org_name = org.name
+#     org_name = org.name
 
-    # Get the JSON data from the request
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
+#     # Get the JSON data from the request
+#     data = request.get_json()
+#     if not data:
+#         return jsonify({"error": "No data provided"}), 400
 
-    prompt = data.get('prompt')
-    meeting = data.get('meeting')
-    page_url = data.get('pageUrl')
+#     prompt = data.get('prompt')
+#     meeting = data.get('meeting')
+#     page_url = data.get('pageUrl')
 
-    if not meeting or not page_url:
-        return jsonify({"error": "Missing 'messages' or 'pageUrl' in request"}), 400
+#     if not meeting or not page_url:
+#         return jsonify({"error": "Missing 'messages' or 'pageUrl' in request"}), 400
 
-    meeting_id = meeting.get("meeting_id")
-    print(meeting_id)
-    # Process the messages and page URL
-    try:
-        reply = str(generate_ai_reply_for_meeting(prompt, meeting_id, user_id, org_name, org_id=org_id))
+#     meeting_id = meeting.get("meeting_id")
+#     print(meeting_id)
+#     # Process the messages and page URL
+#     try:
+#         reply = str(generate_ai_reply_for_meeting(prompt, meeting_id, user_id, org_name, org_id=org_id))
 
-    except Exception as e:
-        print(f"Error generating AI reply: {e}")
-        return jsonify({"error": "Failed to generate AI reply"}), 500
+#     except Exception as e:
+#         print(f"Error generating AI reply: {e}")
+#         return jsonify({"error": "Failed to generate AI reply"}), 500
 
     return jsonify({"reply": reply}), 200
 
@@ -789,7 +789,7 @@ def delete_meeting(meeting_id):
 @admin.route('/api/chat_admin', methods=['POST'])
 @jwt_required()
 def chat_admin():
-# Get the JWT claims
+    # Get the JWT claims
     claims = verify_jwt_in_request()[1]
     org_id = claims['sub']['org_id']
     user_id = claims['sub']['user_id']
@@ -812,7 +812,6 @@ def chat_admin():
 
     # Find the organization
     org = Organization.query.get(org_id)
-
     org_name = org.name
 
     # Get the JSON data from the request
@@ -820,23 +819,28 @@ def chat_admin():
     if not data:
         return jsonify({"error": "No data provided"}), 400
 
-    messages = data.get('messages')
-    employee_ids = data.get('selectedEmployees')
-    manager_ids = data.get('selectedManagers')
-    days = data.get('days')
+    messages = data.get("messages")
+    employee_ids = data.get("selectedEmployees")
+    manager_ids = data.get("selectedManagers")
+    days = data.get("days")
 
     if not messages:
         return jsonify({"error": "Missing 'messages' in request"}), 400
 
-    # Process the messages and page URL
+    # Extract only the latest message
+    latest_message = messages[-1]["text"] if messages else ""
+
+    # Process the latest message
     try:
-        reply = str(generate_ai_reply(messages, 
-                                      user_id, 
-                                      org_name, 
-                                      org_id=org_id,
-                                      days=days, 
-                                      employee_ids=employee_ids, 
-                                      manager_ids=manager_ids))
+        reply = generate_ai_reply(
+            latest_message, 
+            user_id,
+            org_name, 
+            org_id=org_id,
+            days=days, 
+            employee_ids=employee_ids, 
+            manager_ids=manager_ids
+        )
 
     except Exception as e:
         print(f"Error generating AI reply: {e}")

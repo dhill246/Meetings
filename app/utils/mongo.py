@@ -1,4 +1,3 @@
-
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 import os
@@ -154,17 +153,59 @@ def get_all_employee_meetings(org_name, org_id, days, attendee_info, collection_
 
     return list(results)
 
+def get_employee_meetings_for_chat(org_name, org_id, days, attendee_info, collection_name="Meetings"):
+    """
+    Get all one-on-one meetings with a specific employee as a direct report
+    within the last 'days' days, returning only specific fields.
+    """
+
+    employee_id = attendee_info["employee_id"]
+    
+    # Calculate the cutoff date
+    cutoff_date = datetime.now() - timedelta(days=days)
+
+    # Connect to the database and collection
+    database = client[org_name]
+    collection = database[collection_name]
+    
+    # Query with both the attendee and date filter, using a projection
+    results = collection.find(
+        {
+            "org_id": org_id,
+            "attendees": {
+                "$elemMatch": {
+                    "user_id": employee_id,
+                    "role": "Report"
+                }
+            },
+            "date": {
+                "$gte": cutoff_date
+            }
+        },
+        {
+            "type_name": 1,
+            "meeting_duration": 1,
+            "attendees": 1,
+            "date": 1,
+            "raw_text": 1,
+            "summary": 1
+        }
+    )
+
+    return list(results)
 
 def get_all_manager_meetings(org_name, org_id, days, attendee_info, collection_name="Meetings"):
     """
     Get all meetings held by a specific manager, regardless of type, within the last 'days' days,
     returning only specific fields.
     """
+    print(f"Getting manager meetings for org {org_name}, org id {org_id}, from now to {days} ago, with attendees {attendee_info}")
 
     manager_id = attendee_info["manager_id"]
     
     # Calculate the cutoff date
     cutoff_date = datetime.now() - timedelta(days=days)
+    print(cutoff_date)
 
     # Connect to the database and collection
     database = client[org_name]
@@ -180,20 +221,83 @@ def get_all_manager_meetings(org_name, org_id, days, attendee_info, collection_n
                     "role": "Manager"
                 }
             },
-            "Date": {
+            "date": {
                 "$gte": cutoff_date
             }
         },
         {
             "type_name": 1,
             "meeting_duration": 1,
+            "summary": 1,
             "attendees": 1,
-            "Date": 1,
+            "date": 1,
             "raw_text": 1
         }
     )
 
     return list(results)
+
+def get_meetings_for_chat(org_name, org_id, days, manager_id_list, report_id_list, collection_name="Meetings", type_name="One-on-One"):
+    """
+    Get all meetings held by a specific manager, regardless of type, within the last 'days' days,
+    returning only specific fields.
+    """
+
+    # Calculate the cutoff date
+    cutoff_date = datetime.now() - timedelta(days=days)
+
+    # Connect to the database and collection
+    database = client[org_name]
+    collection = database[collection_name]
+    
+   
+    # Base query for filtering by organization, meeting type, and date range
+    query = {
+        "org_id": org_id,
+        "type_name": "One-on-One",
+        "date": {"$gte": cutoff_date}
+    }
+
+    # Adjust query to handle cases where one of the lists is empty
+    attendees_criteria = []
+    if manager_id_list:
+        attendees_criteria.append({
+            "$elemMatch": {
+                "user_id": {"$in": manager_id_list},
+                "role": "Manager"
+            }
+        })
+    if report_id_list:
+        attendees_criteria.append({
+            "$elemMatch": {
+                "user_id": {"$in": report_id_list},
+                "role": "Report"
+            }
+        })
+
+    # Only add the attendees filter if criteria exist
+    if attendees_criteria:
+        query["attendees"] = {"$all": attendees_criteria}
+
+    # Query the collection with the constructed query and projection
+    results = collection.find(
+        query,
+        {
+            "type_name": 1,
+            "meeting_duration": 1,
+            "summary": 1,
+            "attendees": {"first_name": 1,
+                "last_name": 1,
+                "role": 1},
+            "date": 1,
+            "raw_text": 1
+        }
+    )
+
+    # Convert results to a list and remove duplicates by using a set of `_id`s
+    unique_meetings = {meeting["_id"]: meeting for meeting in results}
+
+    return list(unique_meetings.values())
 
 def get_one_on_ones(org_name, org_id, attendee_info, collection_name="Meetings"):
     """

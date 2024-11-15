@@ -11,6 +11,7 @@ from .super_admin import super_admin as super_blueprint
 from .auth import auth as auth_blueprint
 from .admin import admin as admin_blueprint
 from .marketing import marketing as marketing_blueprint
+from .recall import recall as recall_blueprint
 from config import Config
 from .socket_events import register_events
 from flask_cors import CORS
@@ -26,11 +27,6 @@ CURRENT_ENV = os.getenv("FLASK_ENV")
 socketio = SocketIO(cors_allowed_origins=TRUSTED_DOMAIN,
                     async_mode='eventlet')  # Create the SocketIO instance globally
 
-# Configure CSP globally
-# csp = {
-#     "default-src": "'self'",
-#     "script-src": f"'self' {TRUSTED_DOMAIN}"
-# }
 
 def create_app():
     
@@ -43,13 +39,6 @@ def create_app():
     # Initialize jwt
     jwt = JWTManager(app)
 
-    # Initialize Flask-Limiter
-    # limiter = Limiter(
-    #     get_remote_address,
-    #     app=app,
-    #     default_limits=["2000 per day", "300 per hour"]  # Global rate limits
-    # )
-
     # Custom handler for expired tokens
     @jwt.expired_token_loader
     def my_expired_token_callback(jwt_header, jwt_payload):
@@ -59,7 +48,7 @@ def create_app():
         }), 401
     
 
-        # Initialize CORS with broad rule for /api/* routes
+    # Initialize CORS with broad rule for /api/* routes
     CORS(app,
         supports_credentials=True,
         resources={r"/api/*": {"origins": "*"}})
@@ -140,6 +129,7 @@ def create_app():
     app.register_blueprint(admin_blueprint)
     app.register_blueprint(marketing_blueprint)
     app.register_blueprint(super_blueprint)
+    app.register_blueprint(recall_blueprint)
 
     register_events(socketio)  # Register your socket.io event handlers
 
