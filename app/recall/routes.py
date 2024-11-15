@@ -318,7 +318,7 @@ def zoom_oauth_callback():
         return "Authorization failed. No code provided.", 400
 
     # Call the Recall API to create Zoom OAuth Credential
-    recall_api_url = "https://us-east-1.recall.ai/api/v2/zoom-oauth-credentials/"
+    recall_api_url = "https://us-west-2.recall.ai/api/v2/zoom-oauth-credentials/"
     headers = {
         "Authorization": f"Bearer {RECALL_API_KEY}",
         "Content-Type": "application/json",
