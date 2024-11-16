@@ -344,6 +344,6 @@ def zoom_oauth_callback():
                 400,
             )
         else:
-            return "Error creating Zoom OAuth Credential. Please try again.", 400
+            return f"Error creating Zoom OAuth Credential. {error_details} Please try again.", 400
     else:
         return "Unexpected error occurred.", 500
