@@ -74,7 +74,8 @@ def reframe_the_prompt(user_message):
 def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_ids, manager_ids=None):
 
     # Reframe users prompt:
-    user_message_reframed = reframe_the_prompt(user_message)
+    # user_message_reframed = reframe_the_prompt(user_message)
+    user_message_reframed = user_message
 
     # Preprocessing input
     # ------

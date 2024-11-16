@@ -318,4 +318,46 @@ def verify_free_token():
     email = invite.email
     return jsonify({"valid": True, "email": email}), 200
 
-# Fake addition
+
+@auth.route('/api/create_account', methods=["POST"])
+def create_account():
+    data = request.json
+    first_name = data.get("email")
+    last_name = data.get("password")
+    email = data.get("email")
+    password = data.get("password")
+    confirm_password = data.get("confirm_password")
+
+    # Make sure passwords match
+    if password != confirm_password:
+        return jsonify({"error": "Passwords do not match. Please try again."}), 400
+
+    # Check if user email already exists
+    existing_user = User.query.filter_by(email=email).first()
+
+    if existing_user:
+        return jsonify({"error": "Email already in use. Please log in."}), 409
+
+    # Create a new user and add them to the database
+    new_user = User(email=email, 
+                    password_hash=generate_password_hash(password),
+                    first_name=first_name,
+                    last_name=last_name,
+                    organization_id=100,
+                    role="default")
+    
+    db.session.add(new_user)
+    db.session.commit()
+    
+    access_token = create_access_token(identity={"org_id": new_user.organization_id,
+                                    "user_id": new_user.id,
+                                    "role": new_user.role})
+    
+    return jsonify({
+        "message": "User signed up",
+        "access_token": access_token,
+        "next_step": "home"
+    }), 201
+
+
+

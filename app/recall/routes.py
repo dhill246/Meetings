@@ -9,6 +9,7 @@ from datetime import datetime
 from urllib.parse import urlencode
 import logging
 from svix.webhooks import Webhook, WebhookVerificationError
+from flask import Response
 
 # Zoom App Configuration
 ZOOM_CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
@@ -304,18 +305,34 @@ def generate_auth_url(redirect_uri, client_id):
     }
     return base_url + "?" + urlencode(query_params)
 
-@recall.route("/api/connect-zoom")
+@recall.route("/api/connect-zoom", methods=["GET"])
 def connect_zoom():
+
     # Construct the Zoom OAuth URL
     auth_url = generate_auth_url(ZOOM_REDIRECT_URI, ZOOM_CLIENT_ID)
-    return redirect(auth_url)
+
+    # Return the URL to the frontend
+    return jsonify({"auth_url": auth_url}), 200
+
 
 @recall.route("/api/oauth-callback/zoom")
 def zoom_oauth_callback():
     # Extract the authorization code from the callback URL
     authorization_code = request.args.get("code")
     if not authorization_code:
-        return "Authorization failed. No code provided.", 400
+        return Response("""
+            <html>
+                <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                    <h1>Authorization failed. No code provided.</h1>
+                    <p>This page will close automatically in 5 seconds.</p>
+                    <script>
+                        setTimeout(function() {
+                            window.close();
+                        }, 5000);
+                    </script>
+                </body>
+            </html>
+        """, mimetype="text/html")
 
     # Call the Recall API to create Zoom OAuth Credential
     recall_api_url = "https://us-west-2.recall.ai/api/v2/zoom-oauth-credentials/"
@@ -334,16 +351,50 @@ def zoom_oauth_callback():
     response = requests.post(recall_api_url, json=payload, headers=headers)
 
     if response.status_code == 201:
-        return "Zoom account successfully connected!"
+
+        current_user = User()
+        return Response("""
+            <html>
+                <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                    <h1>Zoom account successfully connected!</h1>
+                    <p>This page will close automatically in 5 seconds.</p>
+                    <script>
+                        setTimeout(function() {
+                            window.close();
+                        }, 5000);
+                    </script>
+                </body>
+            </html>
+        """, mimetype="text/html")
     elif response.status_code == 400:
-        # Handle re-authorization case
         error_details = response.json()
-        if "conflicting_zoom_account_id" in error_details:
-            return (
-                f"Conflict: {error_details['detail']}. Please contact support to resolve.",
-                400,
-            )
-        else:
-            return f"Error creating Zoom OAuth Credential. {error_details} Please try again.", 400
+        message = error_details.get("detail", "Error creating Zoom OAuth Credential.")
+        return Response(f"""
+            <html>
+                <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                    <h1>Failed to Connect Zoom Account</h1>
+                    <p>{message}</p>
+                    <p>This page will close automatically in 5 seconds.</p>
+                    <script>
+                        setTimeout(function() {{
+                            window.close();
+                        }}, 5000);
+                    </script>
+                </body>
+            </html>
+        """, mimetype="text/html")
     else:
-        return "Unexpected error occurred.", 500
+        return Response("""
+            <html>
+                <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                    <h1>Unexpected error occurred.</h1>
+                    <p>This page will close automatically in 5 seconds.</p>
+                    <script>
+                        setTimeout(function() {
+                            window.close();
+                        }, 5000);
+                    </script>
+                </body>
+            </html>
+        """, mimetype="text/html")
+    

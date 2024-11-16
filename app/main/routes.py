@@ -446,9 +446,36 @@ def get_meeting_types():
     user = User.query.get(user_id)
     org = Organization.query.get(user.organization_id)
 
-
     meeting_types = fetch_meeting_types(org.name, org_id, scope=user_id)
 
+    return  jsonify({
+                "meeting_types": meeting_types
+            }), 200
+
+
+@main.route('/api/get_meeting_types_for_chat', methods=['GET'])
+@jwt_required()
+def get_meeting_types_for_chat():
+    """
+    GET request: 
+
+        - Returns: {
+                        "meeting_types": ["One-on-One", "Any"]
+                    }
+    """
+
+    claims = verify_jwt_in_request()[1]
+    org_id = claims['sub']['org_id']
+    user_id = claims['sub']['user_id']
+
+    if not org_id or not user_id:
+        print("Please log in to access this page.")
+        return jsonify({"error": "Please log in to access this route", "next_step": "login"}), 401
+
+    user = User.query.get(user_id)
+    org = Organization.query.get(user.organization_id)
+
+    meeting_types = fetch_meeting_types(org.name, org_id, scope="company_wide")
 
     return  jsonify({
                 "meeting_types": meeting_types
