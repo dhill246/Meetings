@@ -322,8 +322,8 @@ def verify_free_token():
 @auth.route('/api/create_account', methods=["POST"])
 def create_account():
     data = request.json
-    first_name = data.get("email")
-    last_name = data.get("password")
+    first_name = data.get("first_name")
+    last_name = data.get("last_name")
     email = data.get("email")
     password = data.get("password")
     confirm_password = data.get("confirm_password")
