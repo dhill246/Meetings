@@ -320,7 +320,7 @@ def zoom_oauth_callback():
     # Call the Recall API to create Zoom OAuth Credential
     recall_api_url = "https://us-west-2.recall.ai/api/v2/zoom-oauth-credentials/"
     headers = {
-        "Authorization": f"Bearer {RECALL_API_KEY}",
+        "Authorization": RECALL_API_KEY,
         "Content-Type": "application/json",
     }
     payload = {
