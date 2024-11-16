@@ -18,6 +18,7 @@ ZOOM_AUTH_BASE_URL = "https://zoom.us/oauth/authorize"
 ZOOM_TOKEN_URL = "https://zoom.us/oauth/token"
 RECALL_API_KEY = os.getenv("RECALL_API_KEY")
 RECALL_ZOOM_OAUTH_APP_ID = os.getenv("RECALL_ZOOM_OAUTH_APP_ID")
+REROUTE = os.getenv("TRUSTED_DOMAIN") + "/home/record-meeting"
 
 # Define the new route
 @recall.route("/api/start-bot", methods=["POST"])
@@ -320,15 +321,15 @@ def zoom_oauth_callback():
     # Extract the authorization code from the callback URL
     authorization_code = request.args.get("code")
     if not authorization_code:
-        return Response("""
+        return Response(f"""
             <html>
                 <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                     <h1>Authorization failed. No code provided.</h1>
-                    <p>This page will close automatically in 5 seconds.</p>
+                    <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                     <script>
-                        setTimeout(function() {
-                            window.close();
-                        }, 5000);
+                        setTimeout(function() {{
+                            window.location.href = "{REROUTE}";
+                        }}, 5000);
                     </script>
                 </body>
             </html>
@@ -351,17 +352,15 @@ def zoom_oauth_callback():
     response = requests.post(recall_api_url, json=payload, headers=headers)
 
     if response.status_code == 201:
-
-        current_user = User()
-        return Response("""
+        return Response(f"""
             <html>
                 <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                     <h1>Zoom account successfully connected!</h1>
-                    <p>This page will close automatically in 5 seconds.</p>
+                    <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                     <script>
-                        setTimeout(function() {
-                            window.close();
-                        }, 5000);
+                        setTimeout(function() {{
+                            window.location.href = "{REROUTE}";
+                        }}, 5000);
                     </script>
                 </body>
             </html>
@@ -374,27 +373,28 @@ def zoom_oauth_callback():
                 <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                     <h1>Failed to Connect Zoom Account</h1>
                     <p>{message}</p>
-                    <p>This page will close automatically in 5 seconds.</p>
+                    <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                     <script>
                         setTimeout(function() {{
-                            window.close();
+                            window.location.href = "{REROUTE}";
                         }}, 5000);
                     </script>
                 </body>
             </html>
         """, mimetype="text/html")
     else:
-        return Response("""
+        return Response(f"""
             <html>
                 <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                     <h1>Unexpected error occurred.</h1>
-                    <p>This page will close automatically in 5 seconds.</p>
+                    <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                     <script>
-                        setTimeout(function() {
-                            window.close();
-                        }, 5000);
+                        setTimeout(function() {{
+                            window.location.href = "{REROUTE}";
+                        }}, 5000);
                     </script>
                 </body>
             </html>
         """, mimetype="text/html")
+
     
