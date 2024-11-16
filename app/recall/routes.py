@@ -373,6 +373,7 @@ def zoom_oauth_callback():
                 <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                     <h1>Failed to Connect Zoom Account</h1>
                     <p>{message}</p>
+                    <p>{error_details}</p>
                     <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                     <script>
                         setTimeout(function() {{
