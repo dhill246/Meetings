@@ -350,6 +350,7 @@ def zoom_oauth_callback():
     }
 
     response = requests.post(recall_api_url, json=payload, headers=headers)
+    details = response.json()
 
     if response.status_code == 201:
         return Response(f"""
@@ -365,15 +366,29 @@ def zoom_oauth_callback():
                 </body>
             </html>
         """, mimetype="text/html")
-    elif response.status_code == 400:
-        error_details = response.json()
-        message = error_details.get("detail", "Error creating Zoom OAuth Credential.")
+    elif response.status_code == 400 and "Zoom OAuth Credential already exists" in details.get("detail", ""):
+            # Custom message for already integrated Zoom account
+            return Response(f"""
+                <html>
+                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                        <h1>Your Zoom account has already been integrated.</h1>
+                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                        <script>
+                            setTimeout(function() {{
+                                window.location.href = "{REROUTE}";
+                            }}, 5000);
+                        </script>
+                    </body>
+                </html>
+            """, mimetype="text/html")
+    else:
+        message = details.get("detail", "Error creating Zoom OAuth Credential.")
         return Response(f"""
             <html>
                 <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                     <h1>Failed to Connect Zoom Account</h1>
                     <p>{message}</p>
-                    <p>{error_details}</p>
+                    <p>{details}</p>
                     <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                     <script>
                         setTimeout(function() {{
@@ -383,19 +398,4 @@ def zoom_oauth_callback():
                 </body>
             </html>
         """, mimetype="text/html")
-    else:
-        return Response(f"""
-            <html>
-                <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
-                    <h1>Unexpected error occurred.</h1>
-                    <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
-                    <script>
-                        setTimeout(function() {{
-                            window.location.href = "{REROUTE}";
-                        }}, 5000);
-                    </script>
-                </body>
-            </html>
-        """, mimetype="text/html")
-
-    
+        
