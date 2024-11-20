@@ -75,6 +75,13 @@ def create_app():
             elif CURRENT_ENV == "staging":
                 return redirect(STAGING_DOMAIN, code=301)
             
+    @app.after_request
+    def add_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://trusted-scripts.com; style-src 'self' 'unsafe-inline'"
+        response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
+        return response
+            
     # Set up basic logging output for the app
     # logging.basicConfig(level=logging.INFO)
 
