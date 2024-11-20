@@ -315,6 +315,26 @@ def connect_zoom():
     # Return the URL to the frontend
     return jsonify({"auth_url": auth_url}), 200
 
+def create_creds(authorization_code):
+    # Call the Recall API to create Zoom OAuth Credential
+    recall_api_url = "https://us-west-2.recall.ai/api/v2/zoom-oauth-credentials/"
+    headers = {
+        "Authorization": RECALL_API_KEY,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "oauth_app": RECALL_ZOOM_OAUTH_APP_ID,
+        "authorization_code": {
+            "code": authorization_code,
+            "redirect_uri": ZOOM_REDIRECT_URI,
+        },
+    }
+
+    response = requests.post(recall_api_url, json=payload, headers=headers)
+    details = response.json()
+
+    return response, details
+
 
 @recall.route("/api/oauth-callback/zoom")
 def zoom_oauth_callback():
@@ -334,23 +354,8 @@ def zoom_oauth_callback():
                 </body>
             </html>
         """, mimetype="text/html")
-
-    # Call the Recall API to create Zoom OAuth Credential
-    recall_api_url = "https://us-west-2.recall.ai/api/v2/zoom-oauth-credentials/"
-    headers = {
-        "Authorization": RECALL_API_KEY,
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "oauth_app": RECALL_ZOOM_OAUTH_APP_ID,
-        "authorization_code": {
-            "code": authorization_code,
-            "redirect_uri": ZOOM_REDIRECT_URI,
-        },
-    }
-
-    response = requests.post(recall_api_url, json=payload, headers=headers)
-    details = response.json()
+    
+    response, details = create_creds(authorization_code)
 
     if response.status_code == 201:
         return Response(f"""
@@ -367,11 +372,23 @@ def zoom_oauth_callback():
             </html>
         """, mimetype="text/html")
     elif response.status_code == 400 and "Zoom OAuth Credential already exists" in details.get("detail", ""):
+            
+            conflicting_zoom_account_id = details.get("conflicting_zoom_account_id")
+
+
+            url = f"https://us-west-2.recall.ai/api/v2/zoom-oauth-credentials/{conflicting_zoom_account_id}/"
+
+            headers = {"Authorization": RECALL_API_KEY}
+
+            response = requests.delete(url, headers=headers)
+
+            response, details = create_creds(authorization_code)
+        
             # Custom message for already integrated Zoom account
             return Response(f"""
                 <html>
                     <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
-                        <h1>Your Zoom account has already been integrated.</h1>
+                        <h1>Your Zoom account has already been integrated. We deleted your integration and successfully reauthorized.</h1>
                         <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                         <script>
                             setTimeout(function() {{
