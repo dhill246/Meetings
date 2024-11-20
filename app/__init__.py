@@ -52,33 +52,6 @@ def create_app():
     CORS(app,
         supports_credentials=True,
         resources={r"/api/*": {"origins": TRUSTED_DOMAIN}})
-
-
-    @app.before_request
-    def handle_options():
-        if request.method == 'OPTIONS':
-            response = jsonify({"status": "CORS preflight successful"})
-            response.headers["Access-Control-Allow-Origin"] = TRUSTED_DOMAIN
-            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
-            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            return response
-
-    @app.after_request
-    def add_cors_headers(response):
-        """Add CORS headers to all responses dynamically based on the trusted domain."""
-        request_origin = request.headers.get("Origin")
-
-        # Ensure only one origin is allowed
-        if request_origin == TRUSTED_DOMAIN:
-            response.headers["Access-Control-Allow-Origin"] = request_origin
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        else:
-            response.headers["Access-Control-Allow-Origin"] = ""
-
-        return response
-
     
     # Initialize csp
     # Talisman(app, content_security_policy=csp)
