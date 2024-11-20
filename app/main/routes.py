@@ -967,6 +967,7 @@ def chat_manager():
     messages = data.get('messages')
     employee_ids = data.get('selectedEmployees')
     days = data.get('days')
+    reframe_prompt = data.get('reframe_prompt')
 
     print(f"Messages: {messages}")
     print(f"Employees: {employee_ids}")
@@ -981,7 +982,8 @@ def chat_manager():
                                       org_name, 
                                       org_id=org_id, 
                                       days=days,
-                                      employee_ids=employee_ids))
+                                      employee_ids=employee_ids,
+                                      reframe_prompt = reframe_prompt))
         
     except Exception as e:
         print(f"Error generating AI reply: {e}")

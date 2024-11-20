@@ -823,6 +823,9 @@ def chat_admin():
     employee_ids = data.get("selectedEmployees")
     manager_ids = data.get("selectedManagers")
     days = data.get("days")
+    reframe_prompt = data.get("reframe_prompt")
+    ai_model = data.get("ai_model")
+    print(f"Received AI model: {ai_model}")
 
     if not messages:
         return jsonify({"error": "Missing 'messages' in request"}), 400
@@ -839,7 +842,9 @@ def chat_admin():
             org_id=org_id,
             days=days, 
             employee_ids=employee_ids, 
-            manager_ids=manager_ids
+            manager_ids=manager_ids,
+            ai_model=ai_model,
+            reframe_prompt=reframe_prompt
         )
 
     except Exception as e:

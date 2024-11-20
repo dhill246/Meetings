@@ -23,6 +23,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import START, END, StateGraph, MessagesState
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from app.utils.mongo import get_meetings_for_chat
+import uuid
 
 # Get necessary AI env vars
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -31,13 +32,16 @@ COHERE_API_KEY = os.getenv("COHERE_API_KEY")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 
+def generate_uuid():
+    return str(uuid.uuid4())
+
 def reframe_the_prompt(user_message):
     # Define template to start all chat instances with:
     prompt = ChatPromptTemplate.from_messages(
         [
             (
                 "system",
-                "The user is going to give you a prompt. If the quality of their prompt could be better, please restate it for them. Return only the restated question.",
+                "The user will give you a prompt. If the prompt could be reworded to more effectively get something back from a meeting transcript, rephrase it for them. Respond only with the rephrased question.",
             ),
             MessagesPlaceholder(variable_name="messages"),
         ]
@@ -71,11 +75,13 @@ def reframe_the_prompt(user_message):
 
 
 
-def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_ids, manager_ids=None):
+def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_ids, manager_ids=None, ai_model="gpt-4o", reframe_prompt=False):
 
     # Reframe users prompt:
-    # user_message_reframed = reframe_the_prompt(user_message)
-    user_message_reframed = user_message
+    if reframe_prompt:
+        user_message_reframed = reframe_the_prompt(user_message)
+    else:
+        user_message_reframed = user_message
 
     # Preprocessing input
     # ------
@@ -118,7 +124,17 @@ def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_id
     # ------
 
     # First, define the model we will use
-    cohere_model = ChatCohere(model="command-r-plus", cohere_api_key=COHERE_API_KEY, temperature=0)
+    if ai_model == "gpt-4o":
+        print("USING GPT-4o")
+        model = ChatOpenAI(model="gpt-4o", openai_api_key=OPENAI_API_KEY, temperature=0)
+    elif ai_model == "command-r-plus":
+        print("USING command-r-plus")
+        model = ChatCohere(model="command-r-plus", cohere_api_key=COHERE_API_KEY, temperature=0)
+    elif ai_model == "claude-3-5":
+        model = ChatAnthropic(model="claude-3-5-sonnet-20241022", api_key=ANTHROPIC_API_KEY, temperature=0)
+    else:
+        model = ChatOpenAI(model="gpt-4o", openai_api_key=OPENAI_API_KEY, temperature=0)
+
 
     # Define the prompt template with message objects
     prompt = ChatPromptTemplate.from_messages(
@@ -140,7 +156,7 @@ def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_id
 
     # Define the function that calls the model
     def call_model(state: State):
-        chain = prompt | cohere_model
+        chain = prompt | model
         response = chain.invoke(state)
         return {"messages": response}
     
@@ -158,10 +174,13 @@ def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_id
 
     # Use SqliteSaver within a context manager for storing, loading, and listing checkpoints
     with SqliteSaver.from_conn_string(DB_URI) as sqlite_saver:
+        # Create ID for this conversation
+        unique_id = generate_uuid()
+
         graph = graph_builder.compile(checkpointer=sqlite_saver)
 
         # Configuration for checkpointing
-        config = {"configurable": {"thread_id": user_id}}
+        config = {"configurable": {"thread_id": unique_id}}
 
         # Define input message
         input_messages = [HumanMessage(user_message_reframed)]
@@ -172,6 +191,16 @@ def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_id
         # Retrieve the most recent message from the output
         most_recent = output.get("messages", [])[-1] if output.get("messages") else None
 
+        if most_recent:
+            content = most_recent.content
+
+        else:
+            return "No response was generated. Please try again."
+
+        # if reframe_prompt:
+
+        #     content = f'Recreated Prompt: "{user_message_reframed}" ' + content
+
         # Example of loading the checkpoint
         saved_checkpoint = sqlite_saver.get(config)
 
@@ -179,5 +208,4 @@ def generate_ai_reply(user_message, user_id, org_name, org_id, days, employee_id
         checkpoints = list(sqlite_saver.list(config))
 
     # Return the content of the most recent message if available
-    print(f"Recreated your prompt to be: {user_message_reframed} \n")
-    return most_recent.content if most_recent else "No response generated."
+    return content
