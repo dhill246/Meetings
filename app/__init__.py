@@ -21,7 +21,7 @@ from flask_jwt_extended import JWTManager
 TRUSTED_DOMAIN = os.getenv('TRUSTED_DOMAIN')
 WEBHOOK_DOMAIN = os.getenv('WEBHOOK_DOMAIN')
 PRODUCTION_DOMAIN = os.getenv('PRODUCTION_DOMAIN')
-STAGING_DOMAIN = os.getenv('STAGING_DOMAIN ')
+STAGING_DOMAIN = os.getenv('STAGING_DOMAIN')
 CURRENT_ENV = os.getenv("FLASK_ENV")
 
 socketio = SocketIO(cors_allowed_origins=TRUSTED_DOMAIN,
@@ -51,25 +51,17 @@ def create_app():
     # Initialize CORS with broad rule for /api/* routes
     CORS(app,
         supports_credentials=True,
-        resources={r"/api/*": {"origins": "*"}})
+        resources={r"/api/*": {"origins": TRUSTED_DOMAIN}})
+
 
     @app.before_request
     def handle_options():
-        """Handle OPTIONS preflight requests for CORS"""
         if request.method == 'OPTIONS':
             response = jsonify({"status": "CORS preflight successful"})
-            request_origin = request.headers.get("Origin")
-            
-            # Ensure only one origin is allowed
-            if request_origin == TRUSTED_DOMAIN:
-                response.headers.clear()  # Clear any existing CORS headers
-                response.headers["Access-Control-Allow-Origin"] = request_origin
-                response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
-                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-            else:
-                response.headers["Access-Control-Allow-Origin"] = ""
-            
+            response.headers["Access-Control-Allow-Origin"] = TRUSTED_DOMAIN
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS, GET"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            response.headers["Access-Control-Allow-Credentials"] = "true"
             return response
 
     @app.after_request
