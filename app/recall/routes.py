@@ -133,7 +133,7 @@ def start_meeting_bot():
 @recall.route("/api/webhook", methods=["POST"])
 def webhook():
     """
-    Listener to receive updates from Recall meeting bot.
+    Listener to receive updates from Recall meeting bot and calendar events.
     """
     print("Received webhook request")
     
@@ -220,6 +220,25 @@ def webhook():
                 print("Status is 'done', calling retrieve_bot function")
                 retrieve_bot(bot_id)
             print("Completed status handling")
+        
+        elif event == "calendar.update":
+            print("Processing calendar.update event")
+            calendar_id = data["data"]["calendar_id"]
+            print(f"Extracted calendar_id: {calendar_id}")
+            
+            # Re-fetch the calendar to get the latest state
+            # Implement your logic to handle calendar updates here
+            # Example: update_calendar_state(calendar_id)
+
+        elif event == "calendar.sync_events":
+            print("Processing calendar.sync_events event")
+            calendar_id = data["data"]["calendar_id"]
+            last_updated_ts = data["data"]["last_updated_ts"]
+            print(f"Extracted calendar_id: {calendar_id}, last_updated_ts: {last_updated_ts}")
+            
+            # Re-fetch the calendar events for this calendar
+            # Implement your logic to sync calendar events here
+            # Example: sync_calendar_events(calendar_id, last_updated_ts)
 
         else:
             logging.warning(f"Unhandled event type: {event}")
@@ -487,30 +506,73 @@ def microsoft_outlook_oauth_callback():
         # Retrieve and validate state
         returned_state = request.args.get("state")
         if not returned_state:
-            return jsonify({"error": "State parameter is missing"}), 400
+            return Response(f"""
+                <html>
+                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                        <h1>State parameter is missing.</h1>
+                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                        <script>
+                            setTimeout(function() {{
+                                window.location.href = "{REROUTE}";
+                            }}, 5000);
+                        </script>
+                    </body>
+                </html>
+            """, mimetype="text/html"), 400
 
         try:
             state = json.loads(returned_state)
         except json.JSONDecodeError:
-            return jsonify({"error": "Invalid state parameter"}), 400
+            return Response(f"""
+                <html>
+                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                        <h1>Invalid state parameter.</h1>
+                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                        <script>
+                            setTimeout(function() {{
+                                window.location.href = "{REROUTE}";
+                            }}, 5000);
+                        </script>
+                    </body>
+                </html>
+            """, mimetype="text/html"), 400
 
         # Extract authorization code and user details
         code = request.args.get("code")
         
         if not code:
-            return jsonify({"error": "Authorization code is missing"}), 400
+            return Response(f"""
+                <html>
+                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                        <h1>Authorization code is missing.</h1>
+                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                        <script>
+                            setTimeout(function() {{
+                                window.location.href = "{REROUTE}";
+                            }}, 5000);
+                        </script>
+                    </body>
+                </html>
+            """, mimetype="text/html"), 400
 
         # Fetch OAuth tokens
         oauth_tokens = fetch_tokens_from_authorization_code_for_microsoft_outlook(code)
 
         if "error" in oauth_tokens:
-            return jsonify({
-                "error": "Failed to exchange code for tokens",
-                "details": oauth_tokens.get("error_description", "No description provided")
-            }), 400
-
-        # Log success
-        print(f"Successfully exchanged code for tokens: {json.dumps(oauth_tokens)}")
+            return Response(f"""
+                <html>
+                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                        <h1>Failed to exchange code for tokens</h1>
+                        <p>{oauth_tokens.get("error_description", "No description provided")}</p>
+                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                        <script>
+                            setTimeout(function() {{
+                                window.location.href = "{REROUTE}";
+                            }}, 5000);
+                        </script>
+                    </body>
+                </html>
+            """, mimetype="text/html"), 400
 
         # Call create calendar in Recall
         url = "https://us-west-2.recall.ai/api/v2/calendars/"
@@ -524,34 +586,74 @@ def microsoft_outlook_oauth_callback():
 
         headers = {
             "accept": "application/json",
-            "content-type": "application/json"
+            "content-type": "application/json",
+            "Authorization": os.getenv("RECALL_API_KEY")
         }
 
         response = requests.post(url, json=payload, headers=headers)
 
-        if response.status_code == 200:
-            # Successful response
-            response_data = response.json()
-            return jsonify({
-                "message": "Successfully connected Microsoft calendar",
-                "user_id": response_data.get("user_id"),
-                "calendar_id": response_data.get("calendar_id"),
-                "oauth_tokens": response_data.get("oauth_tokens")
-            }), 200
+        if response.status_code == 201:
+            return Response(f"""
+                <html>
+                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                        <h1>Successfully connected Microsoft calendar!</h1>
+                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                        <script>
+                            setTimeout(function() {{
+                                window.location.href = "{REROUTE}";
+                            }}, 5000);
+                        </script>
+                    </body>
+                </html>
+            """, mimetype="text/html"), 201
 
         else:
-            return jsonify({
-                "error": "Unexpected error",
-                "status_code": response.status_code,
-                "details": response.text
-            }), response.status_code
+            return Response(f"""
+                <html>
+                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                        <h1>Unexpected error</h1>
+                        <p>Status code: {response.status_code}</p>
+                        <p>Details: {response.text}</p>
+                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                        <script>
+                            setTimeout(function() {{
+                                window.location.href = "{REROUTE}";
+                            }}, 5000);
+                        </script>
+                    </body>
+                </html>
+            """, mimetype="text/html"), response.status_code
 
     except requests.exceptions.RequestException as e:
-        print(f"HTTP error during token exchange: {e}")
-        return jsonify({"error": "Token exchange failed", "details": str(e)}), 500
+        return Response(f"""
+            <html>
+                <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                    <h1>Token exchange failed</h1>
+                    <p>Details: {str(e)}</p>
+                    <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                    <script>
+                        setTimeout(function() {{
+                            window.location.href = "{REROUTE}";
+                        }}, 5000);
+                    </script>
+                </body>
+            </html>
+        """, mimetype="text/html"), 500
     except Exception as e:
-        print(f"Unhandled error: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return Response(f"""
+            <html>
+                <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                    <h1>Internal server error</h1>
+                    <p>Details: {str(e)}</p>
+                    <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                    <script>
+                        setTimeout(function() {{
+                            window.location.href = "{REROUTE}";
+                        }}, 5000);
+                    </script>
+                </body>
+            </html>
+        """, mimetype="text/html"), 500
 
     
 @recall.route("/api/connect-outlook", methods=["GET"])
