@@ -1,15 +1,18 @@
 from . import recall
 from ..tasks import process_recall_video
-from flask import render_template, jsonify, redirect, url_for, request, session
+from flask import render_template, jsonify, session, redirect, url_for, request, session
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from ..models import User, Reports, db, Organization, BotRecord
 import os
+import secrets
 import requests
 from datetime import datetime
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlunparse
 import logging
 from svix.webhooks import Webhook, WebhookVerificationError
 from flask import Response
+import json
+import base64
 
 # Zoom App Configuration
 ZOOM_CLIENT_ID = os.getenv("ZOOM_CLIENT_ID")
@@ -63,12 +66,28 @@ def start_meeting_bot():
             "Authorization": recall_api_key
         }
 
+        # Path to the JPEG file
+        jpeg_file_path = "app/recall/MorphRecordingLogo.jpg"
+
+        # Encode the image in Base64
+        with open(jpeg_file_path, "rb") as image_file:
+            # Read the binary content of the image
+            binary_data = image_file.read()
+            # Encode to Base64
+            base64_data = base64.b64encode(binary_data).decode("utf-8")
+
+
         # Bot configuration to be sent to the external API
         payload = {
             "meeting_url": meeting_url,
-            "bot_name": "Morph Meeting Recorder",
+            "bot_name": "Morph Bot",
             "recording_mode": "audio_only",
-            "join_at": join_at
+            "join_at": join_at,
+            "automatic_video_output": 
+                {"in_call_recording": {
+                    "kind": "jpeg",
+                    "b64_data": base64_data
+                }}
         }
 
         # Make the POST request to the external API
@@ -416,3 +435,136 @@ def zoom_oauth_callback():
             </html>
         """, mimetype="text/html")
         
+def fetch_tokens_from_authorization_code_for_microsoft_outlook(code):
+    """Fetch OAuth tokens from Microsoft using an authorization code."""
+    token_endpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    
+    # Update the payload to match Microsoft's requirements
+    payload = {
+        "client_id": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_ID"),
+        "client_secret": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_SECRET"),
+        "redirect_uri": f"{os.getenv('PUBLIC_URL')}/oauth-callback/microsoft-outlook",
+        "grant_type": "authorization_code",
+        "code": code,
+        "scope": "offline_access openid email https://graph.microsoft.com/Calendars.Read"
+    }
+    
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+    }
+    
+    try:
+        response = requests.post(token_endpoint, data=payload, headers=headers)
+        # Add debug logging
+        print(f"Token exchange response: {response.status_code}")
+        print(f"Response content: {response.text}")
+        
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Token exchange error: {str(e)}")
+        print(f"Response content: {e.response.text if hasattr(e, 'response') else 'No response content'}")
+        raise
+
+def build_microsoft_outlook_oauth_url(state):
+    """Build the Microsoft OAuth URL for authorization."""
+    oauth_endpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+    params = {
+        "client_id": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_ID"),
+        "redirect_uri": f"{os.getenv("PUBLIC_URL")}/oauth-callback/microsoft-outlook",
+        "response_type": "code",
+        "scope": "offline_access openid email https://graph.microsoft.com/Calendars.Read",
+        "state": json.dumps(state),
+    }
+    query_string = urlencode(params)
+    return f"{oauth_endpoint}?{query_string}"
+
+@recall.route("/oauth-callback/microsoft-outlook", methods=["GET"])
+def microsoft_outlook_oauth_callback():
+    """Handle the OAuth callback from Microsoft."""
+    try:
+        # Retrieve and validate state
+        returned_state = request.args.get("state")
+        if not returned_state:
+            return jsonify({"error": "State parameter is missing"}), 400
+
+        try:
+            state = json.loads(returned_state)
+        except json.JSONDecodeError:
+            return jsonify({"error": "Invalid state parameter"}), 400
+
+        # Extract authorization code and user details
+        code = request.args.get("code")
+        
+        if not code:
+            return jsonify({"error": "Authorization code is missing"}), 400
+
+        # Fetch OAuth tokens
+        oauth_tokens = fetch_tokens_from_authorization_code_for_microsoft_outlook(code)
+
+        if "error" in oauth_tokens:
+            return jsonify({
+                "error": "Failed to exchange code for tokens",
+                "details": oauth_tokens.get("error_description", "No description provided")
+            }), 400
+
+        # Log success
+        print(f"Successfully exchanged code for tokens: {json.dumps(oauth_tokens)}")
+
+        # Call create calendar in Recall
+        url = "https://us-west-2.recall.ai/api/v2/calendars/"
+
+        payload = {
+            "platform": "microsoft_outlook",
+            "oauth_client_id": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_ID"),
+            "oauth_client_secret": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_SECRET"),
+            "oauth_refresh_token": oauth_tokens.get("refresh_token") 
+        }
+
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/json"
+        }
+
+        response = requests.post(url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+            # Successful response
+            response_data = response.json()
+            return jsonify({
+                "message": "Successfully connected Microsoft calendar",
+                "user_id": response_data.get("user_id"),
+                "calendar_id": response_data.get("calendar_id"),
+                "oauth_tokens": response_data.get("oauth_tokens")
+            }), 200
+
+        else:
+            return jsonify({
+                "error": "Unexpected error",
+                "status_code": response.status_code,
+                "details": response.text
+            }), response.status_code
+
+    except requests.exceptions.RequestException as e:
+        print(f"HTTP error during token exchange: {e}")
+        return jsonify({"error": "Token exchange failed", "details": str(e)}), 500
+    except Exception as e:
+        print(f"Unhandled error: {e}")
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+    
+@recall.route("/api/connect-outlook", methods=["GET"])
+def connect_outlook():
+    
+    # Generate a random state
+    state = secrets.token_urlsafe(16)
+
+    # Save the state in the session
+    session["outlook_oauth_state"] = state
+
+    # Construct the Zoom OAuth URL
+    auth_url = build_microsoft_outlook_oauth_url(state)
+
+    # Return the URL to the frontend
+    return jsonify({"auth_url": auth_url}), 200
