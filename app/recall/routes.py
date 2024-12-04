@@ -87,7 +87,8 @@ def start_meeting_bot():
                 {"in_call_recording": {
                     "kind": "jpeg",
                     "b64_data": base64_data
-                }}
+                }},
+            "variant": {"zoom": "native"}
         }
 
         # Make the POST request to the external API
