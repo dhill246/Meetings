@@ -23,6 +23,40 @@ RECALL_API_KEY = os.getenv("RECALL_API_KEY")
 RECALL_ZOOM_OAUTH_APP_ID = os.getenv("RECALL_ZOOM_OAUTH_APP_ID")
 REROUTE = os.getenv("TRUSTED_DOMAIN") + "/home/record-meeting"
 
+def encode_state(csrf_token, user_id, org_id):
+    """Encode the state parameter as a base64 JSON string."""
+    state_data = {
+        "csrf_token": csrf_token,
+        "user_id": user_id,
+        "org_id": org_id,
+    }
+    return base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
+
+def decode_state(encoded_state):
+    """Decode the base64 JSON state parameter."""
+    try:
+        state_data = json.loads(base64.urlsafe_b64decode(encoded_state).decode())
+        return state_data
+    except (ValueError, json.JSONDecodeError):
+        raise ValueError("Invalid state parameter.")
+    
+def render_redirect_html(message, success=False):
+    """Render an HTML page to redirect the user."""
+    color = "green" if success else "red"
+    return Response(f"""
+        <html>
+            <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
+                <h1 style="color: {color};">{message}</h1>
+                <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
+                <script>
+                    setTimeout(function() {{
+                        window.location.href = "{os.getenv('TRUSTED_DOMAIN')}/home/record-meeting";
+                    }}, 5000);
+                </script>
+            </body>
+        </html>
+    """, mimetype="text/html")
+
 def start_meeting_bot_logic(meeting_url, meeting_name, meeting_type, join_at, user_id, org_id):
     """
     Core logic to start the meeting bot and store it in the database.
@@ -309,7 +343,6 @@ def retrieve_bot(bot_id):
                 user = User.query.filter_by(id=user_id).first()
                 org = Organization.query.filter_by(id=org_id).first()
 
-
                 attendees_info = {
                     "first_name": user.first_name,
                     "last_name": user.last_name,
@@ -560,89 +593,61 @@ def microsoft_outlook_oauth_callback():
         logging.info("Starting Microsoft Outlook OAuth callback.")
         # Retrieve and validate state
         returned_state = request.args.get("state")
-        logging.info(f"Returned state: {returned_state}")
         if not returned_state:
             logging.error("State parameter is missing.")
-            return Response("""
-                <html>
-                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
-                        <h1>State parameter is missing.</h1>
-                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
-                        <script>
-                            setTimeout(function() {{
-                                window.location.href = "{REROUTE}";
-                            }}, 5000);
-                        </script>
-                    </body>
-                </html>
-            """, mimetype="text/html"), 400
+            return render_redirect_html("State parameter is missing.")
 
         try:
-            state = json.loads(returned_state)
-            user_id = state.get("user_id")
-            org_id = state.get("org_id")
-            logging.info(f"Parsed state: user_id={user_id}, org_id={org_id}")
-        except json.JSONDecodeError:
+            state_data = decode_state(returned_state)
+            user_id = state_data.get("user_id")
+            org_id = state_data.get("org_id")
+        except ValueError:
             logging.error("Invalid state parameter.")
-            return jsonify({"error": "Invalid state parameter"}), 400
+            return render_redirect_html("Invalid state parameter.")
 
         # Extract authorization code
         code = request.args.get("code")
-        logging.info(f"Authorization code: {code}")
         if not code:
             logging.error("Authorization code is missing.")
-            return jsonify({"error": "Authorization code is missing"}), 400
+            return render_redirect_html("Authorization code is missing.")
 
         # Fetch OAuth tokens
-        logging.info("Fetching OAuth tokens from Microsoft.")
         oauth_tokens = fetch_tokens_from_authorization_code_for_microsoft_outlook(code)
-        logging.info(f"OAuth tokens: {oauth_tokens}")
         if "error" in oauth_tokens:
             logging.error("Failed to exchange code for tokens.")
-            return jsonify({"error": oauth_tokens.get("error_description", "Failed to exchange code for tokens")}), 400
+            return render_redirect_html("Failed to exchange code for tokens.")
 
         # Call create calendar in Recall
-        logging.info("Creating calendar in Recall.")
-        url = "https://us-west-2.recall.ai/api/v2/calendars/"
         payload = {
             "platform": "microsoft_outlook",
             "oauth_client_id": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_ID"),
             "oauth_client_secret": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_SECRET"),
             "oauth_refresh_token": oauth_tokens.get("refresh_token"),
         }
-        logging.info(f"Payload for Recall: {payload}")
         headers = {
             "accept": "application/json",
             "content-type": "application/json",
             "Authorization": os.getenv("RECALL_API_KEY"),
         }
-        response = requests.post(url, json=payload, headers=headers)
-        logging.info(f"Recall response: {response.status_code}, {response.text}")
+        response = requests.post("https://us-west-2.recall.ai/api/v2/calendars/", json=payload, headers=headers)
 
         if response.status_code == 201:
             calendar_data = response.json()
             calendar_id = calendar_data.get("id")
-            logging.info(f"Calendar created: {calendar_id}")
 
             # Save the calendar in the database
-            logging.info("Saving calendar to the database.")
-            new_calendar = Calendar(
-                calendar_id=calendar_id,
-                user_id=user_id,
-                org_id=org_id
-            )
+            new_calendar = Calendar(calendar_id=calendar_id, user_id=user_id, org_id=org_id)
             db.session.add(new_calendar)
             db.session.commit()
-            logging.info("Calendar saved successfully.")
-            return jsonify({"message": "Successfully connected Microsoft calendar!"}), 201
+
+            return render_redirect_html("Successfully connected Microsoft calendar!", success=True)
         else:
             logging.error(f"Unexpected error: {response.text}")
-            return jsonify({"error": f"Unexpected error: {response.text}"}), response.status_code
+            return render_redirect_html("Unexpected error occurred.")
 
     except Exception as e:
         logging.exception("An error occurred during Microsoft OAuth callback.")
-        return jsonify({"error": str(e)}), 500
-
+        return render_redirect_html(str(e))
 
 @recall.route("/oauth-callback/google-calendar", methods=["GET"])
 def google_calendar_oauth_callback():
@@ -651,120 +656,91 @@ def google_calendar_oauth_callback():
         logging.info("Starting Google Calendar OAuth callback.")
         # Retrieve and validate state
         returned_state = request.args.get("state")
-        logging.info(f"Returned state: {returned_state}")
         if not returned_state:
             logging.error("State parameter is missing.")
-            return Response("""
-                <html>
-                    <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
-                        <h1>State parameter is missing.</h1>
-                        <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
-                        <script>
-                            setTimeout(function() {{
-                                window.location.href = "{REROUTE}";
-                            }}, 5000);
-                        </script>
-                    </body>
-                </html>
-            """, mimetype="text/html"), 400
+            return render_redirect_html("State parameter is missing.")
 
         try:
-            state = json.loads(returned_state)
-            user_id = state.get("user_id")
-            org_id = state.get("org_id")
-            logging.info(f"Parsed state: user_id={user_id}, org_id={org_id}")
-        except json.JSONDecodeError:
+            state_data = decode_state(returned_state)
+            user_id = state_data.get("user_id")
+            org_id = state_data.get("org_id")
+        except ValueError:
             logging.error("Invalid state parameter.")
-            return jsonify({"error": "Invalid state parameter"}), 400
+            return render_redirect_html("Invalid state parameter.")
 
         # Extract authorization code
         code = request.args.get("code")
-        logging.info(f"Authorization code: {code}")
         if not code:
             logging.error("Authorization code is missing.")
-            return jsonify({"error": "Authorization code is missing"}), 400
+            return render_redirect_html("Authorization code is missing.")
 
         # Fetch OAuth tokens
-        logging.info("Fetching OAuth tokens from Google.")
         oauth_tokens = fetch_tokens_from_authorization_code_for_google_calendar(code)
-        logging.info(f"OAuth tokens: {oauth_tokens}")
         if "error" in oauth_tokens:
             logging.error("Failed to exchange code for tokens.")
-            return jsonify({"error": oauth_tokens.get("error_description", "Failed to exchange code for tokens")}), 400
+            return render_redirect_html("Failed to exchange code for tokens.")
 
         # Call create calendar in Recall
-        logging.info("Creating calendar in Recall.")
-        url = "https://us-west-2.recall.ai/api/v2/calendars/"
         payload = {
             "platform": "google_calendar",
             "oauth_client_id": os.getenv("GOOGLE_CALENDAR_OAUTH_CLIENT_ID"),
             "oauth_client_secret": os.getenv("GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET"),
             "oauth_refresh_token": oauth_tokens.get("refresh_token"),
         }
-        logging.info(f"Payload for Recall: {payload}")
         headers = {
             "accept": "application/json",
             "content-type": "application/json",
             "Authorization": os.getenv("RECALL_API_KEY"),
         }
-        response = requests.post(url, json=payload, headers=headers)
-        logging.info(f"Recall response: {response.status_code}, {response.text}")
+        response = requests.post("https://us-west-2.recall.ai/api/v2/calendars/", json=payload, headers=headers)
 
         if response.status_code == 201:
             calendar_data = response.json()
             calendar_id = calendar_data.get("id")
-            logging.info(f"Calendar created: {calendar_id}")
 
             # Save the calendar in the database
-            logging.info("Saving calendar to the database.")
-            new_calendar = Calendar(
-                calendar_id=calendar_id,
-                user_id=user_id,
-                org_id=org_id
-            )
+            new_calendar = Calendar(calendar_id=calendar_id, user_id=user_id, org_id=org_id)
             db.session.add(new_calendar)
             db.session.commit()
-            logging.info("Calendar saved successfully.")
-            return jsonify({"message": "Successfully connected Google calendar!"}), 201
+
+            return render_redirect_html("Successfully connected Google calendar!", success=True)
         else:
             logging.error(f"Unexpected error: {response.text}")
-            return jsonify({"error": f"Unexpected error: {response.text}"}), response.status_code
+            return render_redirect_html("Unexpected error occurred.")
 
     except Exception as e:
         logging.exception("An error occurred during Google OAuth callback.")
-        return jsonify({"error": str(e)}), 500
+        return render_redirect_html(str(e))
 
-    
 @recall.route("/api/connect-outlook", methods=["GET"])
+@jwt_required()
 def connect_outlook():
-    
-    # Generate a random state
-    state = secrets.token_urlsafe(16)
+    user_id = get_jwt_identity()["user_id"]
+    org_id = get_jwt_identity()["org_id"]
 
-    # Save the state in the session
-    session["outlook_oauth_state"] = state
+    if not user_id or not org_id:
+        return jsonify({"error": "Missing user or organization ID"}), 401
 
-    # Construct the Zoom OAuth URL
+    csrf_token = secrets.token_urlsafe(16)
+    state = encode_state(csrf_token, user_id, org_id)
+
     auth_url = build_microsoft_outlook_oauth_url(state)
-
-    # Return the URL to the frontend
     return jsonify({"auth_url": auth_url}), 200
 
 @recall.route("/api/connect-google-calendar", methods=["GET"])
+@jwt_required()
 def connect_google_calendar():
-    
-    # Generate a random state
-    state = secrets.token_urlsafe(16)
+    user_id = get_jwt_identity()["user_id"]
+    org_id = get_jwt_identity()["org_id"]
 
-    # Save the state in the session
-    session["google_oauth_state"] = state
+    if not user_id or not org_id:
+        return jsonify({"error": "Missing user or organization ID"}), 401
 
-    # Construct the Zoom OAuth URL
+    csrf_token = secrets.token_urlsafe(16)
+    state = encode_state(csrf_token, user_id, org_id)
+
     auth_url = build_google_calendar_oauth_url(state)
-
-    # Return the URL to the frontend
     return jsonify({"auth_url": auth_url}), 200
-
 
 def update_calendar_state(calendar_id):
 
@@ -782,7 +758,6 @@ def update_calendar_state(calendar_id):
     else:
         return None
     
-
 def list_calendar_events(calendar_id):
 
     url = f"https://us-west-2.recall.ai/api/v2/calendar-events/?calendar_id={calendar_id}"
