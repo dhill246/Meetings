@@ -493,11 +493,10 @@ def fetch_tokens_from_authorization_code_for_microsoft_outlook(code):
         raise
 
 def build_microsoft_outlook_oauth_url(state):
-    """Build the Microsoft OAuth URL for authorization."""
     oauth_endpoint = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
     params = {
         "client_id": os.getenv("MICROSOFT_OUTLOOK_OAUTH_CLIENT_ID"),
-        "redirect_uri": f"{os.getenv("PUBLIC_URL")}/oauth-callback/microsoft-outlook",
+        "redirect_uri": f"{os.getenv('PUBLIC_URL')}/oauth-callback/microsoft-outlook",
         "response_type": "code",
         "scope": "offline_access openid email https://graph.microsoft.com/Calendars.Read",
         "state": json.dumps(state),
@@ -539,7 +538,6 @@ def fetch_tokens_from_authorization_code_for_google_calendar(code):
         raise
 
 def build_google_calendar_oauth_url(state):
-    """Build the Google OAuth URL for authorization."""
     oauth_endpoint = "https://accounts.google.com/o/oauth2/v2/auth"
     params = {
         "client_id": os.getenv("GOOGLE_CALENDAR_OAUTH_CLIENT_ID"),
@@ -736,30 +734,42 @@ def google_calendar_oauth_callback():
 
     
 @recall.route("/api/connect-outlook", methods=["GET"])
+@jwt_required()
 def connect_outlook():
-    
-    # Generate a random state
-    state = secrets.token_urlsafe(16)
+    # Extract user_id and org_id from the JWT claims
+    claims = verify_jwt_in_request()[1]
+    user_id = claims['sub']['user_id']
+    org_id = claims['sub']['org_id']
 
-    # Save the state in the session
-    session["outlook_oauth_state"] = state
+    # Generate state including user_id and org_id
+    state = {
+        "user_id": user_id,
+        "org_id": org_id,
+        "csrf_token": secrets.token_urlsafe(16)  # Optional: Add CSRF protection
+    }
 
-    # Construct the Zoom OAuth URL
+    # Construct the Microsoft OAuth URL
     auth_url = build_microsoft_outlook_oauth_url(state)
 
     # Return the URL to the frontend
     return jsonify({"auth_url": auth_url}), 200
 
 @recall.route("/api/connect-google-calendar", methods=["GET"])
+@jwt_required()
 def connect_google_calendar():
-    
-    # Generate a random state
-    state = secrets.token_urlsafe(16)
+    # Extract user_id and org_id from the JWT claims
+    claims = verify_jwt_in_request()[1]
+    user_id = claims['sub']['user_id']
+    org_id = claims['sub']['org_id']
 
-    # Save the state in the session
-    session["google_oauth_state"] = state
+    # Generate state including user_id and org_id
+    state = {
+        "user_id": user_id,
+        "org_id": org_id,
+        "csrf_token": secrets.token_urlsafe(16)  # Optional: Add CSRF protection
+    }
 
-    # Construct the Zoom OAuth URL
+    # Construct the Google OAuth URL
     auth_url = build_google_calendar_oauth_url(state)
 
     # Return the URL to the frontend
