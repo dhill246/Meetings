@@ -104,3 +104,16 @@ class BotRecord(db.Model):
 
     def __repr__(self):
         return f"<BotRecord bot_id={self.bot_id} user_id={self.user_id} status={self.status}>"
+    
+class Calendar(db.Model):
+    __tablename__ = "calendar"
+    
+    id = db.Column(db.Integer, primary_key=True)
+    calendar_id = db.Column(db.String, unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id', name='fk_calendar_user_id'), nullable=False)
+    org_id = db.Column(db.Integer, db.ForeignKey('organization.id', name='fk_calendar_org_id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.now)
+
+    user = db.relationship('User', backref='calendars', lazy=True)
+    organization = db.relationship('Organization', backref='calendars', lazy=True)
