@@ -558,15 +558,15 @@ def microsoft_outlook_oauth_callback():
         # Retrieve and validate state
         returned_state = request.args.get("state")
         if not returned_state:
-            return Response("""
+            return Response(f"""
                 <html>
                     <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                         <h1>State parameter is missing.</h1>
                         <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                         <script>
-                            setTimeout(function() {
+                            setTimeout(function() {{
                                 window.location.href = "{REROUTE}";
-                            }, 5000);
+                            }}, 5000);
                         </script>
                     </body>
                 </html>
@@ -577,15 +577,15 @@ def microsoft_outlook_oauth_callback():
             user_id = state.get("user_id")
             org_id = state.get("org_id")
         except json.JSONDecodeError:
-            return Response("""
+            return Response(f"""
                 <html>
                     <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                         <h1>Invalid state parameter.</h1>
                         <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                         <script>
-                            setTimeout(function() {
+                            setTimeout(function() {{
                                 window.location.href = "{REROUTE}";
-                            }, 5000);
+                            }}, 5000);
                         </script>
                     </body>
                 </html>
@@ -593,15 +593,15 @@ def microsoft_outlook_oauth_callback():
 
         code = request.args.get("code")
         if not code:
-            return Response("""
+            return Response(f"""
                 <html>
                     <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                         <h1>Authorization code is missing.</h1>
                         <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                         <script>
-                            setTimeout(function() {
+                            setTimeout(function() {{
                                 window.location.href = "{REROUTE}";
-                            }, 5000);
+                            }}, 5000);
                         </script>
                     </body>
                 </html>
@@ -638,15 +638,15 @@ def microsoft_outlook_oauth_callback():
         )
 
         if response.status_code == 201:
-            return Response("""
+            return Response(f"""
                 <html>
                     <body style="text-align: center; margin-top: 20px; font-family: Arial, sans-serif;">
                         <h1>Microsoft calendar successfully connected!</h1>
                         <p>Redirecting you back to Morph Meetings in 5 seconds.</p>
                         <script>
-                            setTimeout(function() {
+                            setTimeout(function() {{
                                 window.location.href = "{REROUTE}";
-                            }, 5000);
+                            }}, 5000);
                         </script>
                     </body>
                 </html>
