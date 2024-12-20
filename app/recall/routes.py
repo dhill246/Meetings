@@ -731,50 +731,42 @@ def google_calendar_oauth_callback():
     except Exception as e:
         logging.exception("An error occurred during Google OAuth callback.")
         return jsonify({"error": str(e)}), 500
-
     
-@recall.route("/api/connect-outlook", methods=["GET"])
-@jwt_required()
-def connect_outlook():
-    # Extract user_id and org_id from the JWT claims
-    claims = verify_jwt_in_request()[1]
-    user_id = claims['sub']['user_id']
-    org_id = claims['sub']['org_id']
-
-    # Generate state including user_id and org_id
-    state = {
+def create_state(user_id, org_id):
+    return {
         "user_id": user_id,
         "org_id": org_id,
         "csrf_token": secrets.token_urlsafe(16)  # Optional: Add CSRF protection
     }
-
-    # Construct the Microsoft OAuth URL
-    auth_url = build_microsoft_outlook_oauth_url(state)
-
-    # Return the URL to the frontend
-    return jsonify({"auth_url": auth_url}), 200
 
 @recall.route("/api/connect-google-calendar", methods=["GET"])
 @jwt_required()
 def connect_google_calendar():
-    # Extract user_id and org_id from the JWT claims
+    try:
+        claims = verify_jwt_in_request()[1]
+        user_id = claims['sub']['user_id']
+        org_id = claims['sub']['org_id']
+
+
+        state = create_state(user_id, org_id)
+
+        auth_url = build_google_calendar_oauth_url(state)
+
+        return jsonify({"auth_url": auth_url}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@recall.route("/api/connect-outlook", methods=["GET"])
+@jwt_required()
+def connect_outlook():
     claims = verify_jwt_in_request()[1]
     user_id = claims['sub']['user_id']
     org_id = claims['sub']['org_id']
 
-    # Generate state including user_id and org_id
-    state = {
-        "user_id": user_id,
-        "org_id": org_id,
-        "csrf_token": secrets.token_urlsafe(16)  # Optional: Add CSRF protection
-    }
+    state = create_state(user_id, org_id)
+    auth_url = build_microsoft_outlook_oauth_url(state)
 
-    # Construct the Google OAuth URL
-    auth_url = build_google_calendar_oauth_url(state)
-
-    # Return the URL to the frontend
     return jsonify({"auth_url": auth_url}), 200
-
 
 def update_calendar_state(calendar_id):
 
